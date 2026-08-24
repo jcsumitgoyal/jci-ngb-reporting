@@ -58,7 +58,7 @@ const ZONE_BASELINE = {
   1: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   2: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   3: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  4: { ly:{annual:'1000', half2:'700', activeLOs:'5', newLOs:'6', jrjc:'1', ladyLOs:'2'}, zsTarget:{mem:'11', fc:'12'}, target:{mem2nd:'13', newLOs:'14', ladyLOs:'15', jrjc:'16', jcomTables:'17', jcomMembers:'18', jacMembers:'19'} },
+  4: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   5: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   6: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   8: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },

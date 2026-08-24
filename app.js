@@ -174,7 +174,8 @@ function renderLogin(){
   + '<button class="btn-primary wide" type="submit">Sign in</button>'
   + '<div class="err" id="lerr">Incorrect username or password.</div>'
   + '</form>'
-  + '<div class="login-foot">Zone Presidents sign in as <span class="mono">zp&lt;zone&gt;</span> · NVPs as <span class="mono">nvp&lt;area&gt;</span> · NEC as <span class="mono">nec</span></div>'
+  + '<div class="login-foot">Zone Presidents sign in as <span class="mono">zp&lt;zone&gt;</span> · NVPs as <span class="mono">nvp&lt;area&gt;</span> · NEC as <span class="mono">nec</span>'
+  + '<div style="margin-top:10px;color:var(--navy);font-weight:600">Developed by JFS Sumit Goyal</div></div>'
   + '</div></div>';
   $('#loginForm').addEventListener('submit', async e=>{
     e.preventDefault();
@@ -289,7 +290,8 @@ function renderZP(user){
   + '<button type="button" class="btn-sec" id="draftBtn" style="margin-top:20px;padding:12px 22px;font-size:15px">Save as draft</button>'
   + '<button class="btn-primary" type="submit">Submit final report</button></div>'
   + '<div class="hint">A draft is saved for you but NOT shown to your NVP. "Submit final report" makes it count in the Area consolidation; submitting again later updates it. All fields must be filled without fail; A – Achieved, T – Target.</div>'
-  + '</div></form><div id="printArea"></div></main>';
+  + '</div></form><div id="printArea"></div>'
+  + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
 
   /* live shortfall / % */
   ['mem','fc'].forEach(k=>{
@@ -569,6 +571,7 @@ function renderZP(user){
       + sec('Action Marks (if any)', '<div style="font-size:13px;white-space:pre-wrap">'+esc(r.actionMarks||'—')+'</div>')
       + kv2(th(['ZP Name','Zone','Date','Status'])
         + '<tr><td>'+esc(m.zpName||'')+'</td><td>Zone '+r.zone+'</td><td>'+esc(m.reportDate||'')+'</td><td>'+(r.status==='draft'?'DRAFT':'Submitted')+'</td></tr>')
+      + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div>'
       + '</div>';
   }
   document.getElementById('zpPrintBtn').addEventListener('click', ()=>{
@@ -912,7 +915,8 @@ async function renderConsolidated(user){
     + '<div class="toolbar no-print"><button class="btn-sec" id="csvBtn">Download CSV</button>'
     + '<button class="btn-sec" onclick="window.print()">Print / PDF</button></div>'
     + (user.role==='NVP' ? '<div id="nvpInputs"></div>' : '')
-    + '<div id="consol"></div></main>';
+    + '<div id="consol"></div>'
+    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
 
   async function load(){
     const period = $('#cPeriod').value;
