@@ -21,6 +21,20 @@ const AREAS = {
   F:[6,22,26,27],
 };
 
+/* -----------------------------------------------------------------
+   APP VERSION — bump this on every change you publish.
+   Shown in the footer, the login screen and the admin console, so
+   you can confirm at a glance which build a user is actually running
+   (handy when someone's browser is serving a cached copy).
+   Convention: MAJOR.MINOR — raise MINOR for changes/fixes,
+   MAJOR for a significant reworking.
+----------------------------------------------------------------- */
+const APP_VERSION = '1.0';
+const APP_UPDATED = '2026-08-25';
+const APP_CHANGES = [
+  ['1.0','2026-08-25','Login activity log with IP and device; SuperAdmin console; baseline data editor; developer credit.'],
+];
+
 /* Reporting periods (reports are filed per NGB / NEC meeting) */
 const PERIODS = ['I NGB','II NGB','III NGB','IV NGB','V NGB','VI NEC & IV NGB'];
 const DEFAULT_PERIOD = 'IV NGB';

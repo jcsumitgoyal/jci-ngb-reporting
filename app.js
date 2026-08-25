@@ -253,7 +253,10 @@ function renderLogin(){
   + '<div class="err" id="lerr">Incorrect username or password.</div>'
   + '</form>'
   + '<div class="login-foot">Zone Presidents sign in as <span class="mono">zp&lt;zone&gt;</span> · NVPs as <span class="mono">nvp&lt;area&gt;</span> · NEC as <span class="mono">nec</span>'
-  + '<div style="margin-top:10px;color:var(--navy);font-weight:600">Developed by JFS Sumit Goyal</div></div>'
+  + '<div style="margin-top:10px;color:var(--navy);font-weight:600">Developed by JFS Sumit Goyal</div>'
+  + (appVersion() ? '<div style="margin-top:3px;font-size:11.5px">Version '+esc(appVersion())
+      + (typeof APP_UPDATED !== 'undefined' ? ' · updated '+esc(APP_UPDATED) : '')+'</div>' : '')
+  + '</div>'
   + '</div></div>';
   $('#loginForm').addEventListener('submit', async e=>{
     e.preventDefault();
@@ -271,6 +274,7 @@ function renderLogin(){
         result: found ? 'success' : 'failed',
         at: new Date().toISOString(),
         ip: await lookupIP(),
+        appVersion: appVersion(),
         platform: (navigator.platform || ''),
         screen: (window.screen ? window.screen.width+'x'+window.screen.height : ''),
         device: (navigator.userAgent||'').slice(0,180)
@@ -385,7 +389,7 @@ function renderZP(user){
   + '<button class="btn-primary" type="submit">Submit final report</button></div>'
   + '<div class="hint">A draft is saved for you but NOT shown to your NVP. "Submit final report" makes it count in the Area consolidation; submitting again later updates it. All fields must be filled without fail; A – Achieved, T – Target.</div>'
   + '</div></form><div id="printArea"></div>'
-  + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+  + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   /* live shortfall / % */
   ['mem','fc'].forEach(k=>{
@@ -588,7 +592,7 @@ function renderZP(user){
       oc:obj(OC_COLS, k=>val('oc_'+k)),
       visits:Object.fromEntries(VISIT_KEYS.map(([k])=>[k,{dates:val('vi_'+k+'_dates'),tc:val('vi_'+k+'_tc'),tcno:val('vi_'+k+'_tcno'),status:val('vi_'+k+'_status'),photo:photos[k]||''}])),
       majorEvents, efforts:val('f_efforts'), actionMarks:val('f_action'),
-      status:status, submittedBy:user.u, updatedAt:new Date().toISOString()
+      status:status, submittedBy:user.u, updatedAt:new Date().toISOString(), appVersion:appVersion()
     };
     return r;
   }
@@ -667,7 +671,7 @@ function renderZP(user){
       + sec('Action Marks (if any)', '<div style="font-size:13px;white-space:pre-wrap">'+esc(r.actionMarks||'—')+'</div>')
       + kv2(th(['ZP Name','Zone','Date','Status'])
         + '<tr><td>'+esc(m.zpName||'')+'</td><td>Zone '+r.zone+'</td><td>'+esc(m.reportDate||'')+'</td><td>'+(r.status==='draft'?'DRAFT':'Submitted')+'</td></tr>')
-      + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div>'
+      + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div>'
       + '</div>';
   }
   document.getElementById('zpPrintBtn').addEventListener('click', ()=>{
@@ -1033,7 +1037,7 @@ async function renderConsolidated(user){
     + '</div>'
     + (user.role==='NVP' ? '<div id="nvpInputs"></div>' : '')
     + '<div id="consol"></div>'
-    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   async function load(){
     await ensureBaseline();
@@ -1198,6 +1202,17 @@ async function renderAdmin(user){
     + '<button class="btn-sec" onclick="location.hash=\'logins\'">Login activity</button>'
     + '<button class="btn-sec" onclick="location.hash=\'hash\'">Password hash tool</button>'
     + '</div></div>'
+    + '<div class="card"><h2>Version</h2>'
+    + '<div class="lead">Running <b>v'+esc(appVersion()||'—')+'</b>'
+    + (typeof APP_UPDATED !== 'undefined' ? ' · published '+esc(APP_UPDATED) : '')
+    + '. If a user reports an old version here, ask them to hard-refresh (Ctrl+Shift+R).</div>'
+    + (typeof APP_CHANGES !== 'undefined' && APP_CHANGES.length
+        ? '<div class="tscroll"><table class="rtab">'
+          + '<tr><th>Version</th><th>Date</th><th>Changes</th></tr>'
+          + APP_CHANGES.map(c=>'<tr><td class="rowlab mono">v'+esc(c[0])+'</td><td>'+esc(c[1])+'</td><td>'+esc(c[2])+'</td></tr>').join('')
+          + '</table></div>'
+        : '')
+    + '</div>'
     + '<div class="card"><h2>Baseline data status — all zones</h2>'
     + '<div class="lead" id="blStatusLead">Green = all figures set · Amber = partly filled · Red = nothing set. Select a zone to open the editor.</div>'
     + '<div id="aBaseline"></div>'
@@ -1208,7 +1223,7 @@ async function renderAdmin(user){
     + '<div class="card"><h2>Submission status — all zones</h2>'
     + '<div class="lead">Green = final submitted · Amber = draft · Red = pending. Select any zone to open its report.</div>'
     + '<div id="aMatrix"></div></div>'
-    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   async function load(){
     await ensureBaseline();
@@ -1350,6 +1365,13 @@ async function renderBaselineEditor(user){
   });
 }
 
+/* App version, shown in footers and the admin console */
+function appVersion(){ return (typeof APP_VERSION !== 'undefined') ? APP_VERSION : ''; }
+function versionTag(){
+  const v = appVersion();
+  return v ? ' · v'+esc(v) : '';
+}
+
 /* Turn a long user-agent string into something readable */
 function deviceLabel(r){
   const ua = r.device || '';
@@ -1378,7 +1400,7 @@ async function renderLoginLog(user){
     + '<div class="card"><h2>Most recent sign-ins</h2>'
     + '<div class="lead">Latest 200 attempts, newest first. Failed attempts are shown in red.</div>'
     + '<div id="logTable"><div class="empty">Loading…</div></div></div>'
-    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   async function load(){
     let rows = [];

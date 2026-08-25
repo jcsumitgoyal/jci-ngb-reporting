@@ -120,6 +120,21 @@ Passwords are stored as SHA-256 hashes in the `USERS` list in `users.js` — pla
 
 Edit the `USERS` array — each entry is `{u, p, role, zone, area}`. To move a zone to a different NVP, edit the `AREAS` object at the top of the script.
 
+## 4c. Version numbering
+
+`users.js` holds `APP_VERSION`, `APP_UPDATED` and an `APP_CHANGES` list. Bump the version every time you publish a change:
+
+```js
+const APP_VERSION = '1.1';
+const APP_UPDATED = '2026-09-02';
+const APP_CHANGES = [
+  ['1.1','2026-09-02','What changed in this release.'],
+  ['1.0','2026-08-25','First release.'],
+];
+```
+
+The version shows on the login screen, in every page footer, and in the SuperAdmin console with the full changelog. It is also stored with each login record and each saved report, so you can tell which build produced any given entry. If someone reports odd behaviour, ask which version their footer shows — an old number means their browser is serving a cached copy and a hard refresh (Ctrl+Shift+R) will fix it.
+
 ## 5. Files
 
 ```
