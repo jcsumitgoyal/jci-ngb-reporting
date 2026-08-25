@@ -131,6 +131,21 @@ const Store = {
   }
 };
 
+/* Best-effort public IP lookup for the login log.
+   Browsers cannot read a device's MAC address or local IP, so only the
+   public IP (as seen by the internet) is available. Never blocks sign-in. */
+async function lookupIP(){
+  try{
+    const ctl = new AbortController();
+    const timer = setTimeout(()=>ctl.abort(), 2500);
+    const res = await fetch('https://api.ipify.org?format=json', {signal: ctl.signal});
+    clearTimeout(timer);
+    if(!res.ok) return '';
+    const data = await res.json();
+    return data.ip || '';
+  }catch(err){ return ''; }
+}
+
 /* ---------- Auth & helpers ---------- */
 function today(){ return new Date().toISOString().slice(0,10); }
 
@@ -255,6 +270,9 @@ function renderLogin(){
         area: found?.area ?? null,
         result: found ? 'success' : 'failed',
         at: new Date().toISOString(),
+        ip: await lookupIP(),
+        platform: (navigator.platform || ''),
+        screen: (window.screen ? window.screen.width+'x'+window.screen.height : ''),
         device: (navigator.userAgent||'').slice(0,180)
       });
     }catch(err){ console.error('login log failed', err); }
@@ -1332,6 +1350,23 @@ async function renderBaselineEditor(user){
   });
 }
 
+/* Turn a long user-agent string into something readable */
+function deviceLabel(r){
+  const ua = r.device || '';
+  if(!ua) return r.platform || '—';
+  const os = /Android/i.test(ua) ? 'Android'
+    : /iPhone|iPad|iPod/i.test(ua) ? 'iOS'
+    : /Windows/i.test(ua) ? 'Windows'
+    : /Mac OS X|Macintosh/i.test(ua) ? 'Mac'
+    : /Linux/i.test(ua) ? 'Linux' : '';
+  const br = /Edg\//i.test(ua) ? 'Edge'
+    : /OPR\/|Opera/i.test(ua) ? 'Opera'
+    : /Chrome\//i.test(ua) ? 'Chrome'
+    : /Firefox\//i.test(ua) ? 'Firefox'
+    : /Safari\//i.test(ua) ? 'Safari' : '';
+  return [os, br].filter(Boolean).join(' · ') || (r.platform||'—');
+}
+
 /* ---------- Login log (NEC only) ---------- */
 async function renderLoginLog(user){
   app.innerHTML = appbar(user) + '<main class="wrap view">' + modeBanner()
@@ -1369,21 +1404,23 @@ async function renderLoginLog(user){
       '<div class="kpi"><div class="n">'+rows.length+'</div><div class="l">Attempts logged</div></div>'
       + '<div class="kpi"><div class="n">'+uniq+'</div><div class="l">Distinct users</div></div>'
       + '<div class="kpi"><div class="n">'+todayCount+'</div><div class="l">Sign-ins today</div></div>'
+      + '<div class="kpi"><div class="n">'+new Set(rows.map(r=>r.ip).filter(Boolean)).size+'</div><div class="l">Distinct IPs</div></div>'
       + '<div class="kpi"><div class="n">'+rows.filter(r=>r.result!=='success').length+'</div><div class="l">Failed attempts</div></div>';
 
     const fmt = iso => { if(!iso) return ''; const d=new Date(iso);
       return isNaN(d) ? String(iso) : d.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}); };
     const who = r => r.role==='ZP' ? 'Zone '+r.zone : r.role==='NVP' ? 'Area '+r.area : (r.role||'—');
     $('#logTable').innerHTML = '<div class="tscroll"><table class="rtab">'
-      + th(['Date &amp; Time','Username','Name','Role','Scope','Result'])
+      + th(['Date &amp; Time','Username','Name','Role','Scope','IP address','Device','Result'])
       + rows.map(r=>'<tr><td>'+esc(fmt(r.at))+'</td><td class="mono">'+esc(r.user||'')+'</td><td>'+esc(r.name||'')+'</td>'
         + '<td>'+esc(r.role||'')+'</td><td>'+esc(who(r))+'</td>'
+        + '<td class="mono">'+esc(r.ip||'—')+'</td><td style="font-size:12px">'+esc(deviceLabel(r))+'</td>'
         + '<td class="'+(r.result==='success'?'pos':'neg')+'">'+(r.result==='success'?'Success':'Failed')+'</td></tr>').join('')
       + '</table></div>';
 
     $('#logCsvBtn').onclick = ()=>{
-      const head = ['Date & Time','Username','Name','Role','Zone','Area','Result','Device'];
-      const csv = [head].concat(rows.map(r=>[fmt(r.at), r.user, r.name, r.role, r.zone??'', r.area??'', r.result, r.device||'']))
+      const head = ['Date & Time','Username','Name','Role','Zone','Area','IP address','Platform','Screen','Result','Device / browser'];
+      const csv = [head].concat(rows.map(r=>[fmt(r.at), r.user, r.name, r.role, r.zone??'', r.area??'', r.ip||'', r.platform||'', r.screen||'', r.result, r.device||'']))
         .map(row=>row.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
       const link = document.createElement('a');
       link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));

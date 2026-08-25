@@ -67,7 +67,7 @@ const ZONE_BASELINE = {
   11: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   12: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   13: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  14: { ly:{annual:'5000', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
+  14: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   15: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   16: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
   17: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
