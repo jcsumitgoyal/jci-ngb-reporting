@@ -81,6 +81,53 @@ const Store = {
     const id = 'nvp' + area + '_' + pkey(period);
     if (useFirebase){ const d = await db.collection('nvp_reports').doc(id).get(); return d.exists ? d.data() : null; }
     const all = JSON.parse(localStorage.getItem('jci_nvp')||'{}'); return all[id]||null;
+  },
+  /* --- login audit trail --- */
+  async logLogin(entry){
+    const local = ()=>{ const all = JSON.parse(localStorage.getItem('jci_logins')||'[]');
+      all.push(entry); localStorage.setItem('jci_logins', JSON.stringify(all.slice(-500))); };
+    if (useFirebase){
+      try{
+        await db.collection('login_logs').add(entry);
+        localStorage.removeItem('jci_log_error');
+      }catch(err){
+        console.error('login_logs write refused:', err);
+        localStorage.setItem('jci_log_error', (err && err.code) || 'unknown');
+        local();   /* keep a copy on this device so nothing is lost */
+      }
+      return;
+    }
+    local();
+  },
+  async recentLogins(limit){
+    limit = limit || 200;
+    const local = ()=>JSON.parse(localStorage.getItem('jci_logins')||'[]');
+    if (useFirebase){
+      try{
+        const snap = await db.collection('login_logs').orderBy('at','desc').limit(limit).get();
+        const rows = snap.docs.map(d=>d.data());
+        if (rows.length) return rows;
+      }catch(err){
+        console.error('login_logs read refused:', err);
+        localStorage.setItem('jci_log_error', (err && err.code) || 'unknown');
+      }
+      return local().sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,limit);
+    }
+    return local().sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,limit);
+  },
+  /* --- baseline data (2025 figures + current-year targets) --- */
+  async getBaseline(){
+    if (useFirebase){
+      const d = await db.collection('config').doc('baseline').get();
+      return d.exists ? (d.data().zones || {}) : null;
+    }
+    const raw = localStorage.getItem('jci_baseline');
+    return raw ? JSON.parse(raw) : null;
+  },
+  async saveBaseline(zones){
+    const payload = { zones, updatedAt:new Date().toISOString() };
+    if (useFirebase){ await db.collection('config').doc('baseline').set(payload); return; }
+    localStorage.setItem('jci_baseline', JSON.stringify(zones));
   }
 };
 
@@ -127,7 +174,19 @@ async function sha256(text){
 }
 function session(){ try{return JSON.parse(sessionStorage.getItem('jci_user'))}catch{return null} }
 function setSession(u){ sessionStorage.setItem('jci_user', JSON.stringify(u)); }
-function logout(){ sessionStorage.removeItem('jci_user'); render(); }
+function logout(){ sessionStorage.removeItem('jci_user'); sessionStorage.removeItem('jci_acting'); location.hash=''; render(); }
+
+/* SuperAdmin "act as" — lets an admin open any ZP or NVP report */
+function acting(){ try{return JSON.parse(sessionStorage.getItem('jci_acting'))}catch{return null} }
+function actAs(role, key){
+  const u = role==='ZP' ? USERS.find(x=>x.role==='ZP' && x.zone===Number(key))
+                        : USERS.find(x=>x.role==='NVP' && x.area===key);
+  if(!u){ toast('No such user configured'); return; }
+  sessionStorage.setItem('jci_acting', JSON.stringify(
+    {u:u.u, role:u.role, zone:u.zone??null, area:u.area??null, name:u.name||'', viaAdmin:true}));
+  location.hash=''; render();
+}
+function stopActing(){ sessionStorage.removeItem('jci_acting'); location.hash=''; render(); }
 
 const $ = s => document.querySelector(s);
 const app = document.getElementById('app');
@@ -145,12 +204,16 @@ function areaOfZone(z){ return Object.keys(AREAS).find(a=>AREAS[a].includes(z));
 
 function appbar(user){
   const who = user.role==='ZP' ? 'Zone '+user.zone+' · Area '+user.area
-            : user.role==='NVP' ? 'NVP Area '+user.area : 'National Executive Committee';
+            : user.role==='NVP' ? 'NVP Area '+user.area
+            : user.role==='ADMIN' ? 'SuperAdmin' : 'National Executive Committee';
   const nm = user.name ? esc(user.name)+' · ' : '';
+  const actBtn = user.viaAdmin
+    ? '<button class="btn-out" onclick="stopActing()" style="margin-right:8px">← Admin console</button>' : '';
   return '<header class="appbar"><div class="appbar-inner">'
     + '<div class="logo-badge"><img src="jci-india-logo.png" alt="JCI India"></div>'
     + '<div><div class="title">JCI India · NGB Reporting</div><div class="sub">Zone → NVP → NEC</div></div>'
-    + '<div class="who"><div class="role">'+esc(user.role)+'</div><div>'+nm+esc(who)+'</div></div>'
+    + '<div class="who"><div class="role">'+esc(user.role)+(user.viaAdmin?' <span style="color:#9FB6CC">(as admin)</span>':'')+'</div><div>'+nm+esc(who)+'</div></div>'
+    + actBtn
     + '<button class="btn-out" onclick="logout()">Sign out</button>'
     + '</div></header>';
 }
@@ -182,6 +245,19 @@ function renderLogin(){
     const u = $('#lu').value.trim().toLowerCase();
     const hash = await sha256($('#lp').value);
     const found = USERS.find(x=>x.u===u && x.p===hash);
+    /* audit trail — never block sign-in if logging fails */
+    try{
+      await Store.logLogin({
+        user: u,
+        name: found?.name || '',
+        role: found?.role || '',
+        zone: found?.zone ?? null,
+        area: found?.area ?? null,
+        result: found ? 'success' : 'failed',
+        at: new Date().toISOString(),
+        device: (navigator.userAgent||'').slice(0,180)
+      });
+    }catch(err){ console.error('login log failed', err); }
     if(!found){ $('#lerr').style.display='block'; return; }
     setSession({u:found.u, role:found.role, zone:found.zone??null, area:found.area??null, name:found.name??''});
     render();
@@ -406,13 +482,15 @@ function renderZP(user){
   /* Baseline fields (Last Year 2025 + current-year targets) come from
      ZONE_BASELINE in users.js, maintained centrally by NHQ. Anything left
      blank there falls back to the first period's report, then to manual entry. */
-  const baseCfg = (typeof ZONE_BASELINE !== 'undefined' && ZONE_BASELINE[user.zone]) || {};
+  let baseCfg = {};
   const baseLocked = (typeof BASELINE_LOCKED === 'undefined') ? true : !!BASELINE_LOCKED;
   const has = v => v!=='' && v!=null;
 
   function lockIf(id, locked){ const el=document.getElementById(id); if(el) el.readOnly = locked; }
 
   async function applyBaseline(){
+    await ensureBaseline();
+    baseCfg = baselineOf(user.zone);
     const period = $('#zpPeriod').value;
     const noteZS = document.getElementById('baseNoteZS');
     const noteLY = document.getElementById('baseNoteLY');
@@ -613,9 +691,27 @@ function renderZP(user){
 ========================================================= */
 function th(cells){ return '<tr>'+cells.map(c=>'<th>'+c+'</th>').join('')+'</tr>'; }
 
-/* Baseline values for a zone: config first, then the base-period report */
+/* Baseline: saved via the admin panel, falling back to ZONE_BASELINE in users.js */
+let BASELINE_LIVE = null;
+async function ensureBaseline(){
+  if (BASELINE_LIVE) return BASELINE_LIVE;
+  try{ BASELINE_LIVE = await Store.getBaseline(); }catch(err){ console.error('baseline load failed', err); }
+  if (!BASELINE_LIVE) BASELINE_LIVE = (typeof ZONE_BASELINE !== 'undefined') ? ZONE_BASELINE : {};
+  return BASELINE_LIVE;
+}
+function baselineOf(zone){
+  const live = BASELINE_LIVE && BASELINE_LIVE[zone];
+  const file = (typeof ZONE_BASELINE !== 'undefined' && ZONE_BASELINE[zone]) || {};
+  if (!live) return file;
+  /* saved values win; anything blank falls back to the file */
+  const pick = (a,b) => { const o = Object.assign({}, b||{});
+    Object.keys(a||{}).forEach(k=>{ if(a[k]!==''&&a[k]!=null) o[k]=a[k]; }); return o; };
+  return { ly: pick(live.ly, file.ly), zsTarget: pick(live.zsTarget, file.zsTarget), target: pick(live.target, file.target) };
+}
+
+/* Baseline values for a zone: saved/config data first, then the base-period report */
 function baseVal(zone, kind, key, baseByZone){
-  const cfg = (typeof ZONE_BASELINE !== 'undefined' && ZONE_BASELINE[zone]) || {};
+  const cfg = baselineOf(zone);
   const c = kind==='ly' ? cfg.ly?.[key]
           : kind==='zs' ? cfg.zsTarget?.[key]
           : cfg.target?.[key];
@@ -913,12 +1009,16 @@ async function renderConsolidated(user){
     + '<div id="matrixRows"></div>'
     + '<div class="legend"><span><span class="dot" style="background:var(--ok)"></span>Submitted (final)</span><span><span class="dot" style="background:var(--gold)"></span>Draft in progress</span><span><span class="dot" style="background:var(--miss)"></span>Pending</span></div></div>'
     + '<div class="toolbar no-print"><button class="btn-sec" id="csvBtn">Download CSV</button>'
-    + '<button class="btn-sec" onclick="window.print()">Print / PDF</button></div>'
+    + '<button class="btn-sec" onclick="window.print()">Print / PDF</button>'
+    + ((user.role==='NEC'||user.viaAdmin) ? '<button class="btn-sec" onclick="location.hash=\'logins\'">Login Activity</button>' : '')
+    + (user.viaAdmin ? '<button class="btn-sec" onclick="stopActing()">← Admin console</button>' : '')
+    + '</div>'
     + (user.role==='NVP' ? '<div id="nvpInputs"></div>' : '')
     + '<div id="consol"></div>'
     + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
 
   async function load(){
+    await ensureBaseline();
     const period = $('#cPeriod').value;
     const ph = document.getElementById('phTitle');
     if (ph) ph.textContent = (user.role==='NEC' ? 'NATIONAL CONSOLIDATED REPORT — ' : 'NATIONAL VICE PRESIDENT REPORT — ') + period;
@@ -1056,6 +1156,245 @@ async function renderConsolidated(user){
   load();
 }
 
+/* ---------- SuperAdmin console ---------- */
+async function renderAdmin(user){
+  const allZones = Object.keys(AREAS).flatMap(a=>AREAS[a]).sort((x,y)=>x-y);
+  app.innerHTML = appbar(user) + '<main class="wrap view">' + modeBanner()
+    + '<div class="pagehead"><h1>SuperAdmin Console</h1>'
+    + '<div class="pick"><label style="margin:0">Period</label>'+periodPicker('aPeriod', DEFAULT_PERIOD)+'</div></div>'
+    + '<div class="kpis" id="aKpis"></div>'
+    + '<div class="card"><h2>Open any report</h2>'
+    + '<div class="lead">You can fill, correct, or submit on behalf of any Zone President or NVP. Their name stays on the report.</div>'
+    + '<div class="form-grid">'
+    + '<div><label for="aZone">Zone President report</label>'
+    + '<select id="aZone">'+allZones.map(z=>'<option value="'+z+'">Zone '+z+' — '+esc(nameOfZP(z)||'—')+'</option>').join('')+'</select>'
+    + '<button class="btn-sec" style="margin-top:8px" onclick="actAs(\'ZP\', document.getElementById(\'aZone\').value)">Open ZP report</button></div>'
+    + '<div><label for="aArea">NVP report</label>'
+    + '<select id="aArea">'+Object.keys(AREAS).map(a=>'<option value="'+a+'">Area '+a+' — '+esc(nameOfNVP(a)||'—')+'</option>').join('')+'</select>'
+    + '<button class="btn-sec" style="margin-top:8px" onclick="actAs(\'NVP\', document.getElementById(\'aArea\').value)">Open NVP report</button></div>'
+    + '</div></div>'
+    + '<div class="card"><h2>National overview &amp; tools</h2>'
+    + '<div class="toolbar" style="margin:8px 0 0">'
+    + '<button class="btn-sec" onclick="location.hash=\'national\'">National consolidated report</button>'
+    + '<button class="btn-sec" onclick="location.hash=\'baseline\'">Baseline data (2025 &amp; targets)</button>'
+    + '<button class="btn-sec" onclick="location.hash=\'logins\'">Login activity</button>'
+    + '<button class="btn-sec" onclick="location.hash=\'hash\'">Password hash tool</button>'
+    + '</div></div>'
+    + '<div class="card"><h2>Baseline data status — all zones</h2>'
+    + '<div class="lead" id="blStatusLead">Green = all figures set · Amber = partly filled · Red = nothing set. Select a zone to open the editor.</div>'
+    + '<div id="aBaseline"></div>'
+    + '<div class="legend"><span><span class="dot" style="background:var(--ok)"></span>Complete</span>'
+    + '<span><span class="dot" style="background:var(--gold)"></span>Partial</span>'
+    + '<span><span class="dot" style="background:var(--miss)"></span>Not set</span></div>'
+    + '<div id="blMissing" class="hint" style="margin-top:12px"></div></div>'
+    + '<div class="card"><h2>Submission status — all zones</h2>'
+    + '<div class="lead">Green = final submitted · Amber = draft · Red = pending. Select any zone to open its report.</div>'
+    + '<div id="aMatrix"></div></div>'
+    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+
+  async function load(){
+    await ensureBaseline();
+    const period = $('#aPeriod').value;
+    let rows = [];
+    try{ rows = await Store.zpForPeriod(period, null); }catch(err){ console.error(err); }
+    const done = new Set(rows.filter(r=>r.status!=='draft').map(r=>r.zone));
+    const drafts = new Set(rows.filter(r=>r.status==='draft').map(r=>r.zone));
+    let nvpDone = 0, nvpDraft = 0;
+    for (const a of Object.keys(AREAS)){
+      try{ const d = await Store.getNVP(a, period); if(d){ d.status==='draft' ? nvpDraft++ : nvpDone++; } }catch(err){ console.error(err); }
+    }
+    $('#aKpis').innerHTML =
+      '<div class="kpi"><div class="n">'+done.size+'<span style="font-size:15px;color:var(--muted)">/'+allZones.length+'</span></div><div class="l">ZP reports final</div></div>'
+      + '<div class="kpi"><div class="n">'+drafts.size+'</div><div class="l">ZP drafts</div></div>'
+      + '<div class="kpi"><div class="n">'+nvpDone+'<span style="font-size:15px;color:var(--muted)">/6</span></div><div class="l">NVP reports final</div></div>'
+      + '<div class="kpi"><div class="n">'+nvpDraft+'</div><div class="l">NVP drafts</div></div>';
+
+    $('#aMatrix').innerHTML = Object.keys(AREAS).map(a=>
+      '<div class="matrix-row"><div class="area-tag">Area '+a+'</div><div class="zone-chips">'
+      + AREAS[a].map(z=>'<button class="zchip '+(done.has(z)?'done':drafts.has(z)?'draft':'miss')+'" '
+        + 'title="'+esc(nameOfZP(z))+'" onclick="actAs(\'ZP\','+z+')">Z'+z+'</button>').join('')
+      + '</div></div>').join('');
+
+    /* ---- baseline completeness ---- */
+    const ZS_KEYS = ['mem','fc'];
+    function baseState(z){
+      const b = baselineOf(z);
+      const filled = v => v!=='' && v!=null;
+      const parts = [
+        LY_COLS.map(([k])=>filled(b.ly?.[k])),
+        ZS_KEYS.map(k=>filled(b.zsTarget?.[k])),
+        TA_ROWS.map(([k])=>filled(b.target?.[k])),
+      ].flat();
+      const set = parts.filter(Boolean).length;
+      return { set, total: parts.length,
+               state: set===0 ? 'miss' : set===parts.length ? 'done' : 'draft' };
+    }
+    const states = Object.fromEntries(allZones.map(z=>[z, baseState(z)]));
+    const complete = allZones.filter(z=>states[z].state==='done');
+    const partial  = allZones.filter(z=>states[z].state==='draft');
+    const notSet   = allZones.filter(z=>states[z].state==='miss');
+
+    $('#aBaseline').innerHTML = Object.keys(AREAS).map(a=>
+      '<div class="matrix-row"><div class="area-tag">Area '+a+'</div><div class="zone-chips">'
+      + AREAS[a].map(z=>{ const s = states[z];
+          return '<button class="zchip '+s.state+'" title="'+esc(nameOfZP(z))+' — '+s.set+' of '+s.total+' figures set" '
+            + 'onclick="location.hash=\'baseline\'">Z'+z+'</button>'; }).join('')
+      + '</div></div>').join('');
+
+    $('#blStatusLead').textContent = complete.length+' of '+allZones.length
+      + ' zones have complete baseline data. Green = all figures set · Amber = partly filled · Red = nothing set. Select a zone to open the editor.';
+    $('#blMissing').innerHTML = (partial.length||notSet.length)
+      ? (notSet.length ? '<b>Nothing set:</b> '+notSet.map(z=>'Zone '+z).join(', ')+'<br>' : '')
+        + (partial.length ? '<b>Partly filled:</b> '+partial.map(z=>'Zone '+z+' ('+states[z].set+'/'+states[z].total+')').join(', ') : '')
+      : 'All zones have complete baseline data.';
+
+    $('#aKpis').insertAdjacentHTML('beforeend',
+      '<div class="kpi"><div class="n">'+complete.length+'<span style="font-size:15px;color:var(--muted)">/'+allZones.length+'</span></div><div class="l">Baseline complete</div></div>');
+  }
+  $('#aPeriod').addEventListener('change', load);
+  load();
+}
+
+/* ---------- Baseline data editor (SuperAdmin) ---------- */
+async function renderBaselineEditor(user){
+  const allZones = Object.keys(AREAS).flatMap(a=>AREAS[a]).sort((x,y)=>x-y);
+  const ZS_COLS = [['mem','Membership'],['fc','Foundation Contribution']];
+  await ensureBaseline();
+
+  const grid = (title, note, cols, kind) =>
+    '<div class="section-label">'+title+'</div>'
+    + '<div class="hint" style="margin-bottom:8px">'+note+'</div>'
+    + '<div class="tscroll"><table class="ftab">'
+    + '<tr><th>Zone</th><th>Zone President</th>'+cols.map(([k,l])=>'<th>'+l+'</th>').join('')+'</tr>'
+    + allZones.map(z=>'<tr><td class="rowlab">Zone '+z+'</td><td class="rowlab" style="font-weight:400">'+esc(nameOfZP(z)||'—')+'</td>'
+      + cols.map(([k])=>'<td><input id="bl_'+kind+'_'+z+'_'+k+'" type="number" min="0"></td>').join('')+'</tr>').join('')
+    + '</table></div>';
+
+  app.innerHTML = appbar(user) + '<main class="wrap view">' + modeBanner()
+    + '<div class="pagehead"><h1>Baseline Data — 2025 &amp; FTY 2026 Targets</h1>'
+    + '<div class="pick"><button class="btn-sec" onclick="location.hash=\'\'; render();">← Admin console</button></div></div>'
+    + '<div class="card">'
+    + '<div class="lead">Maintained centrally by NHQ. These figures appear pre-filled and read-only in every Zone President report, and drive the totals in the NVP and NEC reports. Leave a cell blank if it is not known — the ZP can then enter it.</div>'
+    + grid('Last Year (2025) Membership Status','Entered once for the year; shown in every report.', LY_COLS, 'ly')
+    + grid('Zone Status — Target to become Positive','Used for Shortfall and Achieved % in all reports.', ZS_COLS, 'zs')
+    + grid('Target / Achievement Report FTY 2026 — Target column','The Target column of the Target/Achievement table.', TA_ROWS, 'ta')
+    + '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
+    + '<button class="btn-primary" id="blSaveBtn">Save baseline data</button>'
+    + '<button type="button" class="btn-sec" id="blCsvBtn" style="margin-top:20px;padding:12px 22px;font-size:15px">Download CSV</button></div>'
+    + '<div class="hint" id="blNote"></div>'
+    + '</div><div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+
+  /* fill current values */
+  allZones.forEach(z=>{
+    const b = baselineOf(z);
+    LY_COLS.forEach(([k])=>setV('bl_ly_'+z+'_'+k, b.ly?.[k] ?? ''));
+    ZS_COLS.forEach(([k])=>setV('bl_zs_'+z+'_'+k, b.zsTarget?.[k] ?? ''));
+    TA_ROWS.forEach(([k])=>setV('bl_ta_'+z+'_'+k, b.target?.[k] ?? ''));
+  });
+
+  function collect(){
+    return Object.fromEntries(allZones.map(z=>[z, {
+      ly:       Object.fromEntries(LY_COLS.map(([k])=>[k, nval('bl_ly_'+z+'_'+k)])),
+      zsTarget: Object.fromEntries(ZS_COLS.map(([k])=>[k, nval('bl_zs_'+z+'_'+k)])),
+      target:   Object.fromEntries(TA_ROWS.map(([k])=>[k, nval('bl_ta_'+z+'_'+k)])),
+    }]));
+  }
+
+  $('#blSaveBtn').addEventListener('click', async ()=>{
+    const zones = collect();
+    try{
+      await Store.saveBaseline(zones);
+      BASELINE_LIVE = zones;
+      toast('Baseline data saved — it now applies to every report');
+      $('#blNote').textContent = 'Last saved '+new Date().toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})+'.';
+    }catch(err){
+      console.error(err);
+      toast('Could not save — check the Firestore rules for the config collection');
+      $('#blNote').textContent = 'Save failed ('+((err&&err.code)||'unknown')+'). In Firebase → Firestore → Rules, add a block for match /config/{docId} with read, write allowed, then Publish.';
+    }
+  });
+
+  $('#blCsvBtn').addEventListener('click', ()=>{
+    const zones = collect();
+    const head = ['Zone','Zone President']
+      .concat(LY_COLS.map(([k,l])=>'2025 '+l))
+      .concat(ZS_COLS.map(([k,l])=>'Target Positive: '+l))
+      .concat(TA_ROWS.map(([k,l])=>'FTY2026 Target: '+l));
+    const rows = allZones.map(z=>[z, nameOfZP(z)]
+      .concat(LY_COLS.map(([k])=>zones[z].ly[k]))
+      .concat(ZS_COLS.map(([k])=>zones[z].zsTarget[k]))
+      .concat(TA_ROWS.map(([k])=>zones[z].target[k])));
+    const csv = [head].concat(rows).map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    link.download = 'JCI_Baseline_Data.csv';
+    link.click();
+  });
+}
+
+/* ---------- Login log (NEC only) ---------- */
+async function renderLoginLog(user){
+  app.innerHTML = appbar(user) + '<main class="wrap view">' + modeBanner()
+    + '<div class="pagehead"><h1>Login Activity</h1>'
+    + '<div class="pick"><button class="btn-sec" onclick="location.hash=\'\'; render();">← Back</button></div></div>'
+    + '<div class="kpis" id="logKpis"></div>'
+    + '<div class="toolbar no-print"><button class="btn-sec" id="logCsvBtn">Download CSV</button>'
+    + '<button class="btn-sec" id="logRefreshBtn">Refresh</button></div>'
+    + '<div class="card"><h2>Most recent sign-ins</h2>'
+    + '<div class="lead">Latest 200 attempts, newest first. Failed attempts are shown in red.</div>'
+    + '<div id="logTable"><div class="empty">Loading…</div></div></div>'
+    + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b></div></main>';
+
+  async function load(){
+    let rows = [];
+    try{ rows = await Store.recentLogins(200); }
+    catch(err){ console.error(err); $('#logTable').innerHTML = '<div class="empty">Could not load the log.</div>'; return; }
+    if(!rows.length){
+      const errCode = localStorage.getItem('jci_log_error');
+      $('#logTable').innerHTML = '<div class="empty">'
+        + (errCode
+          ? '<b>Firestore is refusing the login_logs collection</b> (error: '+esc(errCode)+').<br><br>'
+            + 'In Firebase → Firestore Database → <b>Rules</b>, add this block alongside your existing rules and press <b>Publish</b>:<br>'
+            + '<pre style="text-align:left;display:inline-block;margin-top:10px;font-size:12px">match /login_logs/{logId} {\n  allow read, write: if true;\n}</pre>'
+          : 'No sign-ins recorded yet. Only logins that happen <b>after</b> this update are captured — sign out and back in once to create the first entry.')
+        + '</div>';
+      $('#logKpis').innerHTML='';
+      return;
+    }
+
+    const ok = rows.filter(r=>r.result==='success');
+    const uniq = new Set(ok.map(r=>r.user)).size;
+    const todayCount = ok.filter(r=>String(r.at).slice(0,10)===today()).length;
+    $('#logKpis').innerHTML =
+      '<div class="kpi"><div class="n">'+rows.length+'</div><div class="l">Attempts logged</div></div>'
+      + '<div class="kpi"><div class="n">'+uniq+'</div><div class="l">Distinct users</div></div>'
+      + '<div class="kpi"><div class="n">'+todayCount+'</div><div class="l">Sign-ins today</div></div>'
+      + '<div class="kpi"><div class="n">'+rows.filter(r=>r.result!=='success').length+'</div><div class="l">Failed attempts</div></div>';
+
+    const fmt = iso => { if(!iso) return ''; const d=new Date(iso);
+      return isNaN(d) ? String(iso) : d.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'}); };
+    const who = r => r.role==='ZP' ? 'Zone '+r.zone : r.role==='NVP' ? 'Area '+r.area : (r.role||'—');
+    $('#logTable').innerHTML = '<div class="tscroll"><table class="rtab">'
+      + th(['Date &amp; Time','Username','Name','Role','Scope','Result'])
+      + rows.map(r=>'<tr><td>'+esc(fmt(r.at))+'</td><td class="mono">'+esc(r.user||'')+'</td><td>'+esc(r.name||'')+'</td>'
+        + '<td>'+esc(r.role||'')+'</td><td>'+esc(who(r))+'</td>'
+        + '<td class="'+(r.result==='success'?'pos':'neg')+'">'+(r.result==='success'?'Success':'Failed')+'</td></tr>').join('')
+      + '</table></div>';
+
+    $('#logCsvBtn').onclick = ()=>{
+      const head = ['Date & Time','Username','Name','Role','Zone','Area','Result','Device'];
+      const csv = [head].concat(rows.map(r=>[fmt(r.at), r.user, r.name, r.role, r.zone??'', r.area??'', r.result, r.device||'']))
+        .map(row=>row.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+      link.download = 'JCI_Login_Log_'+today()+'.csv';
+      link.click();
+    };
+  }
+  $('#logRefreshBtn').addEventListener('click', load);
+  load();
+}
+
 /* ---------- Password hash tool (open site with #hash) ---------- */
 function renderHashTool(){
   app.innerHTML = '<div class="hash-tool card view">'
@@ -1068,9 +1407,24 @@ function renderHashTool(){
 
 /* ---------- Router ---------- */
 function render(){
-  if (location.hash === '#hash') return renderHashTool();
   const user = session();
+  if (location.hash === '#hash') return renderHashTool();
   if (!user) return renderLogin();
+
+  /* SuperAdmin acting on behalf of a ZP or NVP */
+  if (user.role === 'ADMIN'){
+    const act = acting();
+    if (act) return act.role === 'ZP' ? renderZP(act) : renderConsolidated(act);
+    if (location.hash === '#logins')   return renderLoginLog(user);
+    if (location.hash === '#baseline') return renderBaselineEditor(user);
+    if (location.hash === '#national') return renderConsolidated({...user, role:'NEC', viaAdmin:true});
+    return renderAdmin(user);
+  }
+
+  if (location.hash === '#logins'){
+    if (user.role === 'NEC') return renderLoginLog(user);
+    location.hash = '';
+  }
   if (user.role === 'ZP') return renderZP(user);
   return renderConsolidated(user);
 }

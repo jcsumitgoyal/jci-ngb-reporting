@@ -71,6 +71,12 @@ service cloud.firestore {
     match /nvp_reports/{reportId} {
       allow read, write: if true;
     }
+    match /login_logs/{logId} {
+      allow read, write: if true;
+    }
+    match /config/{docId} {
+      allow read, write: if true;
+    }
   }
 }
 ```
@@ -78,6 +84,10 @@ service cloud.firestore {
 6. Commit the change — the demo-mode banner disappears and all users now share one live database.
 
 > Note: these open rules are simple and fine for an internal organisational tool, but anyone who discovers the endpoint could technically write to it. If you later want stricter security, the upgrade path is Firebase Authentication + rules that check the signed-in user.
+
+## 3b. Login activity log
+
+Every sign-in attempt (successful or failed) is recorded with the username, name, role, zone/area, timestamp, and device. The NEC can view it: sign in as `nec` and click **Login Activity**, or add `#logins` to the site URL. The log shows the latest 200 attempts and can be exported to CSV. Only NEC can open this view.
 
 ## 4. Drafts, auto-save, and how saving works
 
