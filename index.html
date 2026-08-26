@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>JCI India NGB — Zone Reporting</title>
+<title>JCI India NEC/NGB Reporting</title>
+<!-- After each update: bump ?v= on the two script tags below AND APP_VERSION in users.js.
+     This forces every browser to fetch the new files instead of a cached copy. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -139,7 +141,7 @@ input[readonly]{background:#F2F5F8;color:var(--muted);cursor:not-allowed}
 <body>
 <div id="app"></div>
 <div class="saved-toast" id="toast"></div>
-<script src="users.js"></script>
-<script src="app.js"></script>
+<script src="users.js?v=1.1"></script>
+<script src="app.js?v=1.1"></script>
 </body>
 </html>
