@@ -220,7 +220,9 @@ function areaOfZone(z){ return Object.keys(AREAS).find(a=>AREAS[a].includes(z));
 function appbar(user){
   const who = user.role==='ZP' ? 'Zone '+user.zone+' · Area '+user.area
             : user.role==='NVP' ? 'NVP Area '+user.area
-            : user.role==='ADMIN' ? 'SuperAdmin' : 'National Executive Committee';
+            : user.role==='ADMIN' ? 'SuperAdmin'
+            : user.role==='ND' ? (typeof ND_PORTFOLIOS!=='undefined' && ND_PORTFOLIOS[user.portfolio] ? ND_PORTFOLIOS[user.portfolio].role+' · '+ndName(user.portfolio) : 'National Director')
+            : 'National Executive Committee';
   const nm = user.name ? esc(user.name)+' · ' : '';
   const actBtn = user.viaAdmin
     ? '<button class="btn-out" onclick="stopActing()" style="margin-right:8px">← Admin console</button>' : '';
@@ -281,7 +283,7 @@ function renderLogin(){
       });
     }catch(err){ console.error('login log failed', err); }
     if(!found){ $('#lerr').style.display='block'; return; }
-    setSession({u:found.u, role:found.role, zone:found.zone??null, area:found.area??null, name:found.name??''});
+    setSession({u:found.u, role:found.role, zone:found.zone??null, area:found.area??null, name:found.name??'', portfolio:found.portfolio??null});
     render();
   });
 }
@@ -319,7 +321,8 @@ function renderZP(user){
   + '<div class="pick"><label style="margin:0">Report for</label>'+periodPicker('zpPeriod', DEFAULT_PERIOD)+'</div></div>'
   + '<div class="loaded-note" id="loadedNote">Loaded your earlier submission for this period — saving will update it.</div>'
   + '<div class="toolbar no-print"><button type="button" class="btn-sec" id="zpPrintBtn">Download PDF (Print)</button>'
-  + '<button type="button" class="btn-sec" id="zpCsvBtn">Download CSV</button></div>'
+  + '<button type="button" class="btn-sec" id="zpCsvBtn">Download CSV</button>'
+  + '<button type="button" class="btn-sec" onclick="location.hash=\'nd\'">National Directors\' reports</button></div>'
   + '<form id="zpForm"><div class="card">'
 
   + '<div class="section-label">Report Details</div>'
@@ -1044,6 +1047,7 @@ async function renderConsolidated(user){
     + '<div class="legend"><span><span class="dot" style="background:var(--ok)"></span>Submitted (final)</span><span><span class="dot" style="background:var(--gold)"></span>Draft in progress</span><span><span class="dot" style="background:var(--miss)"></span>Pending</span></div></div>'
     + '<div class="toolbar no-print"><button class="btn-sec" id="csvBtn">Download CSV</button>'
     + '<button class="btn-sec" onclick="window.print()">Print / PDF</button>'
+    + '<button class="btn-sec" onclick="location.hash=\'nd\'">National Directors\' reports</button>'
     + ((user.role==='NEC'||user.viaAdmin) ? '<button class="btn-sec" onclick="location.hash=\'logins\'">Login Activity</button>' : '')
     + (user.viaAdmin ? '<button class="btn-sec" onclick="stopActing()">← Admin console</button>' : '')
     + '</div>'
@@ -1214,17 +1218,17 @@ async function renderAdmin(user){
     + '<button class="btn-sec" onclick="location.hash=\'logins\'">Login activity</button>'
     + '<button class="btn-sec" onclick="location.hash=\'hash\'">Password hash tool</button>'
     + '</div></div>'
-    + '<div class="card"><h2>Version</h2>'
-    + '<div class="lead">Running <b>v'+esc(appVersion()||'—')+'</b>'
-    + (typeof APP_UPDATED !== 'undefined' ? ' · published '+esc(APP_UPDATED) : '')
-    + '. If a user reports an old version here, ask them to hard-refresh (Ctrl+Shift+R).</div>'
-    + (typeof APP_CHANGES !== 'undefined' && APP_CHANGES.length
-        ? '<div class="tscroll"><table class="rtab">'
-          + '<tr><th>Version</th><th>Date</th><th>Changes</th></tr>'
-          + APP_CHANGES.map(c=>'<tr><td class="rowlab mono">v'+esc(c[0])+'</td><td>'+esc(c[1])+'</td><td>'+esc(c[2])+'</td></tr>').join('')
-          + '</table></div>'
-        : '')
-    + '</div>'
+    + (typeof ND_PORTFOLIOS !== 'undefined'
+        ? '<div class="card"><h2>National Directors\' reports</h2>'
+          + '<div class="lead">Open any portfolio report to fill or correct it on the Director\'s behalf.</div>'
+          + '<div class="form-grid"><div><label for="aND">Portfolio</label>'
+          + '<select id="aND">'+Object.keys(ND_PORTFOLIOS).map(k=>'<option value="'+k+'">'+ND_PORTFOLIOS[k].name+'</option>').join('')+'</select>'
+          + '<div style="display:flex;gap:8px;margin-top:8px">'
+          + '<button class="btn-sec" onclick="location.hash=\'nd-edit/\'+document.getElementById(\'aND\').value">Open ND report</button>'
+          + '<button class="btn-sec" onclick="location.hash=\'nd\'">View all ND reports</button></div></div>'
+          + '<div id="ndAdminStatus" style="margin-top:14px"></div></div>'
+        : '<div class="card"><h2>National Directors\' reports</h2><div class="empty">'
+          + 'Module not loaded — upload <span class="mono">nd.js</span> and the latest <span class="mono">index.html</span>, then hard-refresh.</div></div>')
     + '<div class="card"><h2>Baseline data status — all zones</h2>'
     + '<div class="lead" id="blStatusLead">Green = all figures set · Amber = partly filled · Red = nothing set. Select a zone to open the editor.</div>'
     + '<div id="aBaseline"></div>'
@@ -1279,6 +1283,22 @@ async function renderAdmin(user){
     const complete = allZones.filter(z=>states[z].state==='done');
     const partial  = allZones.filter(z=>states[z].state==='draft');
     const notSet   = allZones.filter(z=>states[z].state==='miss');
+
+    /* ND report status */
+    const ndBox = document.getElementById('ndAdminStatus');
+    if (ndBox && typeof ND_PORTFOLIOS !== 'undefined'){
+      let ndRows = [];
+      try{ ndRows = await NDStore.allForPeriod(period); }catch(err){ console.error(err); }
+      const byP = Object.fromEntries(ndRows.map(r=>[r.portfolio,r]));
+      ndBox.innerHTML = '<div class="hint" style="margin-bottom:6px">Status for '+esc(period)+':</div>'
+        + '<div class="zone-chips">'
+        + Object.keys(ND_PORTFOLIOS).map(k=>{
+            const r = byP[k];
+            const st = r ? (r.status==='draft'?'draft':'done') : 'miss';
+            return '<button class="zchip '+st+'" onclick="location.hash=\'nd-edit/'+k+'\'">'+ND_PORTFOLIOS[k].name+'</button>';
+          }).join('')
+        + '</div>';
+    }
 
     $('#aBaseline').innerHTML = Object.keys(AREAS).map(a=>
       '<div class="matrix-row"><div class="area-tag">Area '+a+'</div><div class="zone-chips">'
@@ -1487,6 +1507,21 @@ function render(){
   const user = session();
   if (location.hash === '#hash') return renderHashTool();
   if (!user) return renderLogin();
+
+  /* National Directors' reports — everyone may view, only the ND (or admin) edits */
+  const ndReady = (typeof ND_PORTFOLIOS !== 'undefined' && typeof renderNDView === 'function');
+  if (!ndReady && (location.hash === '#nd' || location.hash.indexOf('#nd-edit/') === 0 || user.role === 'ND')){
+    app.innerHTML = appbar(user) + '<main class="wrap"><div class="empty">'
+      + '<b>The National Directors module (nd.js) is not loaded.</b><br><br>'
+      + 'Upload <span class="mono">nd.js</span> and the latest <span class="mono">index.html</span> to the site, then hard-refresh (Ctrl+Shift+R).'
+      + '</div></main>';
+    return;
+  }
+  if (ndReady && location.hash === '#nd') return renderNDView(user);
+  if (ndReady && location.hash.indexOf('#nd-edit/') === 0 && (user.role==='ADMIN')){
+    return renderNDForm(user, location.hash.split('/')[1]);
+  }
+  if (ndReady && user.role === 'ND') return renderNDForm(user, user.portfolio);
 
   /* SuperAdmin acting on behalf of a ZP or NVP */
   if (user.role === 'ADMIN'){

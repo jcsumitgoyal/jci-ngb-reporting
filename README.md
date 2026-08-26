@@ -77,6 +77,9 @@ service cloud.firestore {
     match /config/{docId} {
       allow read, write: if true;
     }
+    match /nd_reports/{reportId} {
+      allow read, write: if true;
+    }
   }
 }
 ```
@@ -88,6 +91,17 @@ service cloud.firestore {
 ## 3b. Login activity log
 
 Every sign-in attempt (successful or failed) is recorded with the username, name, role, zone/area, timestamp, and device. The NEC can view it: sign in as `nec` and click **Login Activity**, or add `#logins` to the site URL. The log shows the latest 200 attempts and can be exported to CSV. Only NEC can open this view.
+
+## 3c. National Directors' reports
+
+Seven portfolios each have their own official format: Growth & Development, Business, Community Development, Training, Management, PR & Marketing, and Junior Jaycee (National Coordinator).
+
+- Each ND signs in and fills only their own portfolio report (draft or final submit), and can print it as PDF.
+- ZPs, NVPs and NEC can **view** every submitted ND report but cannot edit them — a "National Directors' reports" button appears in their toolbar.
+- SuperAdmin can open and edit any ND portfolio report.
+- These reports are standalone: nothing is consolidated from or into the ZP/NVP reports.
+
+ND logins: `ndgd`, `ndbusiness`, `ndcommunity`, `ndtraining`, `ndmanagement`, `ndpr`, `ndjrjc`.
 
 ## 4. Drafts, auto-save, and how saving works
 
