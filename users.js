@@ -29,9 +29,10 @@ const AREAS = {
    Convention: MAJOR.MINOR — raise MINOR for changes/fixes,
    MAJOR for a significant reworking.
 ----------------------------------------------------------------- */
-const APP_VERSION = '1.0';
-const APP_UPDATED = '2026-08-25';
+const APP_VERSION = '1.1';
+const APP_UPDATED = '2026-08-26';
 const APP_CHANGES = [
+  ['1.1','2026-08-26','Events Participation targets moved into the central baseline data.'],
   ['1.0','2026-08-25','Login activity log with IP and device; SuperAdmin console; baseline data editor; developer credit.'],
 ];
 
@@ -62,6 +63,9 @@ const PERIOD_DATES = {
      target   : FTY 2026 Target column of the Target/Achievement table
                 mem2nd (Membership), newLOs, ladyLOs, jrjc,
                 jcomTables, jcomMembers, jacMembers
+     evTarget : Target column of Events Participation Details
+                aspac, wc, jcsat, nalanda, nttts, ablePro, ableEnt,
+                jasmine, oyp, tobip, natcon
    Leave a value as '' if not known — the ZP can then type it in.
    BASELINE_LOCKED = true  -> ZPs see these as read-only (recommended)
                      false -> ZPs may edit / correct them
@@ -69,34 +73,62 @@ const PERIOD_DATES = {
 const BASELINE_LOCKED = true;
 
 const ZONE_BASELINE = {
-  1: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  2: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  3: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  4: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  5: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  6: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  8: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  9: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  10: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  11: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  12: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  13: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  14: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  15: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  16: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  17: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  18: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  19: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  20: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  21: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  22: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  23: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  24: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  25: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  26: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  27: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  28: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
-  29: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''} },
+  1: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  2: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  3: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  4: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  5: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  6: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  8: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  9: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  10: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  11: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  12: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  13: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  14: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  15: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  16: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  17: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  18: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  19: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  20: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  21: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  22: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  23: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  24: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  25: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  26: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  27: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  28: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
+  29: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},
+       evTarget:{aspac:'', wc:'', jcsat:'', nalanda:'', nttts:'', ablePro:'', ableEnt:'', jasmine:'', oyp:'', tobip:'', natcon:''} },
 };
 
 /* Users — passwords stored as SHA-256 hashes, never plain text.

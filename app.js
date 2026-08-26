@@ -364,6 +364,7 @@ function renderZP(user){
   + '<div class="tscroll"><table class="ftab"><tr><th>Title</th><th>Target</th><th>Achieved</th><th>Amount (₹)</th></tr>'+fcRows+'</table></div>'
 
   + '<div class="section-label">Events Participation Details</div>'
+  + '<div class="hint" id="baseNoteEV" style="margin-bottom:8px"></div>'
   + '<div class="tscroll"><table class="ftab"><tr><th>Event</th><th>Target</th><th>Achieved</th></tr>'+evRows+'</table></div>'
   + '<div class="hint" style="margin:10px 0 4px">No of participants:</div>'
   + '<div class="tscroll"><table class="ftab"><tr>'+EP_ROWS.map(([k,l])=>'<th>'+l+'</th>').join('')+'</tr><tr>'+epCells+'</tr></table></div>'
@@ -517,6 +518,7 @@ function renderZP(user){
     const noteZS = document.getElementById('baseNoteZS');
     const noteLY = document.getElementById('baseNoteLY');
     const noteTA = document.getElementById('baseNoteTA');
+    const noteEV = document.getElementById('baseNoteEV');
 
     /* fall back to the first period's own report for anything not in config */
     let base = null;
@@ -541,12 +543,16 @@ function renderZP(user){
     /* FTY 2026 Target column */
     TA_ROWS.forEach(([k])=>put('ta_'+k+'_t', baseCfg.target?.[k], base?.ta?.[k]?.t));
 
+    /* Events Participation target column */
+    EV_ROWS.forEach(([k])=>put('ev_'+k+'_t', baseCfg.evTarget?.[k], base?.ev?.[k]?.t));
+
     const note = fromCfg
       ? 'Set centrally by NHQ' + (baseLocked ? ' (read-only).' : ' — correct it here if needed.')
       : fromBase ? 'Carried forward from your '+BASE_PERIOD+' report'+(baseLocked?' (read-only).':'.')
       : 'Not set centrally yet — please enter the figures.';
-    [noteZS, noteLY, noteTA].forEach(el=>{ if(el) el.textContent = note; });
-    if (manual && (fromCfg||fromBase)) [noteZS,noteLY,noteTA].forEach(el=>{ if(el) el.textContent = note+' Any blank field can be filled in by you.'; });
+    const notes = [noteZS, noteLY, noteTA, noteEV];
+    notes.forEach(el=>{ if(el) el.textContent = note; });
+    if (manual && (fromCfg||fromBase)) notes.forEach(el=>{ if(el) el.textContent = note+' Any blank field can be filled in by you.'; });
   }
 
   async function loadExisting(){
@@ -728,7 +734,8 @@ function baselineOf(zone){
   /* saved values win; anything blank falls back to the file */
   const pick = (a,b) => { const o = Object.assign({}, b||{});
     Object.keys(a||{}).forEach(k=>{ if(a[k]!==''&&a[k]!=null) o[k]=a[k]; }); return o; };
-  return { ly: pick(live.ly, file.ly), zsTarget: pick(live.zsTarget, file.zsTarget), target: pick(live.target, file.target) };
+  return { ly: pick(live.ly, file.ly), zsTarget: pick(live.zsTarget, file.zsTarget),
+           target: pick(live.target, file.target), evTarget: pick(live.evTarget, file.evTarget) };
 }
 
 /* Baseline values for a zone: saved/config data first, then the base-period report */
@@ -736,11 +743,13 @@ function baseVal(zone, kind, key, baseByZone){
   const cfg = baselineOf(zone);
   const c = kind==='ly' ? cfg.ly?.[key]
           : kind==='zs' ? cfg.zsTarget?.[key]
+          : kind==='ev' ? cfg.evTarget?.[key]
           : cfg.target?.[key];
   if (c!=='' && c!=null) return c;
   const b = baseByZone?.[zone];
   return kind==='ly' ? b?.ly?.[key]
        : kind==='zs' ? b?.zs?.[key]?.t
+       : kind==='ev' ? b?.ev?.[key]?.t
        : b?.ta?.[key]?.t;
 }
 
@@ -808,15 +817,18 @@ function secFC(zones, byZone){
   }).join('');
   return '<div class="tscroll"><table class="rtab">'+th(hcells)+rows+'</table></div>';
 }
-function secEV(zones, byZone){
+function secEV(zones, byZone, baseByZone){
   const hcells = ['Event'];
   zones.forEach(z=>hcells.push('Z'+z+' T','Z'+z+' A'));
   hcells.push('Total T','Total A');
   const rows = EV_ROWS.map(([k,l])=>{
     let T=0,A=0;
     const tds = zones.map(z=>{
-      const c = byZone[z]?.ev?.[k]||{}; T+=n(c.t); A+=n(c.a);
-      return '<td class="n">'+show(c.t)+'</td><td class="n">'+show(c.a)+'</td>';
+      const c = byZone[z]?.ev?.[k]||{};
+      const bv = baseVal(z,'ev',k,baseByZone);
+      const t = (bv!==''&&bv!=null) ? bv : c.t;
+      T+=n(t); A+=n(c.a);
+      return '<td class="n">'+show(t)+'</td><td class="n">'+show(c.a)+'</td>';
     }).join('');
     return '<tr><td class="rowlab">'+l+'</td>'+tds+'<td class="n tot">'+T+'</td><td class="n tot">'+A+'</td></tr>';
   }).join('');
@@ -913,7 +925,7 @@ function areaBlock(area, byZone, nvpDoc, isOwner, baseByZone){
     + sec('Foundation Contribution Details', secFC(zones, byZone))
     + sec('Any Other Contribution Details', secOC(zones, byZone))
     + sec('Visit Details', secVisits(zones, byZone))
-    + sec('Events Participation Details', secEV(zones, byZone))
+    + sec('Events Participation Details', secEV(zones, byZone, baseByZone))
     + sec('National Events Bids received from assigned Zones', secBids(zones, nvpDoc, false))
     + sec('Major Events held in the Zones', secMajorEvents(zones, byZone))
     + sec('Efforts taken to make Zone positive — reported by ZPs', secTextByZone(zones, byZone, 'efforts', 'Efforts taken (ZP report)'))
@@ -1257,6 +1269,7 @@ async function renderAdmin(user){
         LY_COLS.map(([k])=>filled(b.ly?.[k])),
         ZS_KEYS.map(k=>filled(b.zsTarget?.[k])),
         TA_ROWS.map(([k])=>filled(b.target?.[k])),
+        EV_ROWS.map(([k])=>filled(b.evTarget?.[k])),
       ].flat();
       const set = parts.filter(Boolean).length;
       return { set, total: parts.length,
@@ -1311,6 +1324,7 @@ async function renderBaselineEditor(user){
     + grid('Last Year (2025) Membership Status','Entered once for the year; shown in every report.', LY_COLS, 'ly')
     + grid('Zone Status — Target to become Positive','Used for Shortfall and Achieved % in all reports.', ZS_COLS, 'zs')
     + grid('Target / Achievement Report FTY 2026 — Target column','The Target column of the Target/Achievement table.', TA_ROWS, 'ta')
+    + grid('Events Participation Details — Target column','Targets for ASPAC, W.C, JCSAT, NALANDA and the other national events.', EV_ROWS, 'ev')
     + '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">'
     + '<button class="btn-primary" id="blSaveBtn">Save baseline data</button>'
     + '<button type="button" class="btn-sec" id="blCsvBtn" style="margin-top:20px;padding:12px 22px;font-size:15px">Download CSV</button></div>'
@@ -1323,6 +1337,7 @@ async function renderBaselineEditor(user){
     LY_COLS.forEach(([k])=>setV('bl_ly_'+z+'_'+k, b.ly?.[k] ?? ''));
     ZS_COLS.forEach(([k])=>setV('bl_zs_'+z+'_'+k, b.zsTarget?.[k] ?? ''));
     TA_ROWS.forEach(([k])=>setV('bl_ta_'+z+'_'+k, b.target?.[k] ?? ''));
+    EV_ROWS.forEach(([k])=>setV('bl_ev_'+z+'_'+k, b.evTarget?.[k] ?? ''));
   });
 
   function collect(){
@@ -1330,6 +1345,7 @@ async function renderBaselineEditor(user){
       ly:       Object.fromEntries(LY_COLS.map(([k])=>[k, nval('bl_ly_'+z+'_'+k)])),
       zsTarget: Object.fromEntries(ZS_COLS.map(([k])=>[k, nval('bl_zs_'+z+'_'+k)])),
       target:   Object.fromEntries(TA_ROWS.map(([k])=>[k, nval('bl_ta_'+z+'_'+k)])),
+      evTarget: Object.fromEntries(EV_ROWS.map(([k])=>[k, nval('bl_ev_'+z+'_'+k)])),
     }]));
   }
 
@@ -1352,11 +1368,13 @@ async function renderBaselineEditor(user){
     const head = ['Zone','Zone President']
       .concat(LY_COLS.map(([k,l])=>'2025 '+l))
       .concat(ZS_COLS.map(([k,l])=>'Target Positive: '+l))
-      .concat(TA_ROWS.map(([k,l])=>'FTY2026 Target: '+l));
+      .concat(TA_ROWS.map(([k,l])=>'FTY2026 Target: '+l))
+      .concat(EV_ROWS.map(([k,l])=>'Event Target: '+l));
     const rows = allZones.map(z=>[z, nameOfZP(z)]
       .concat(LY_COLS.map(([k])=>zones[z].ly[k]))
       .concat(ZS_COLS.map(([k])=>zones[z].zsTarget[k]))
-      .concat(TA_ROWS.map(([k])=>zones[z].target[k])));
+      .concat(TA_ROWS.map(([k])=>zones[z].target[k]))
+      .concat(EV_ROWS.map(([k])=>zones[z].evTarget[k])));
     const csv = [head].concat(rows).map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
