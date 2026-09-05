@@ -320,9 +320,12 @@ function renderZP(user){
   + '<div class="pagehead"><h1>Zone President Report — Zone '+user.zone+'</h1>'
   + '<div class="pick"><label style="margin:0">Report for</label>'+periodPicker('zpPeriod', DEFAULT_PERIOD)+'</div></div>'
   + '<div class="loaded-note" id="loadedNote">Loaded your earlier submission for this period — saving will update it.</div>'
+  + '<div id="zpLockBanner"></div>'
   + '<div class="toolbar no-print"><button type="button" class="btn-sec" id="zpPrintBtn">Download PDF (Print)</button>'
   + '<button type="button" class="btn-sec" id="zpCsvBtn">Download CSV</button>'
-  + '<button type="button" class="btn-sec" onclick="location.hash=\'nd\'">National Directors\' reports</button></div>'
+  + '<button type="button" class="btn-sec" onclick="location.hash=\'nd\'">National Directors\' reports</button>'
+  + (user.viaAdmin ? '<button type="button" class="btn-sec" id="zpReopenBtn">Reopen for editing</button>' : '')
+  + '</div>'
   + '<form id="zpForm"><div class="card">'
 
   + '<div class="section-label">Report Details</div>'
@@ -392,7 +395,15 @@ function renderZP(user){
   + '<button type="button" class="btn-sec" id="draftBtn" style="margin-top:20px;padding:12px 22px;font-size:15px">Save as draft</button>'
   + '<button class="btn-primary" type="submit">Submit final report</button></div>'
   + '<div class="hint">A draft is saved for you but NOT shown to your NVP. "Submit final report" makes it count in the Area consolidation; submitting again later updates it. All fields must be filled without fail; A – Achieved, T – Target.</div>'
-  + '</div></form><div id="printArea"></div>'
+  + '</div></form>'
+  + '<div id="zpCharts"><div class="section-label">Report at a glance</div>'
+  + '<div class="chart-grid">'
+  + '<div class="chart-card"><h3>Zone Status — Target vs Achieved</h3><div class="sub">Membership and Foundation Contribution</div><div class="chart-box"><canvas id="zcStatus"></canvas></div></div>'
+  + '<div class="chart-card"><h3>Target / Achievement FTY 2026</h3><div class="sub">By category</div><div class="chart-box"><canvas id="zcTA"></canvas></div></div>'
+  + '<div class="chart-card"><h3>Events Participation</h3><div class="sub">Target vs achieved</div><div class="chart-box"><canvas id="zcEV"></canvas></div></div>'
+  + '<div class="chart-card"><h3>Foundation Contribution by title</h3><div class="sub">Achieved</div><div class="chart-box"><canvas id="zcFC"></canvas></div></div>'
+  + '</div></div>'
+  + '<div id="printArea"></div>'
   + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   /* live shortfall / % */
@@ -564,15 +575,27 @@ function renderZP(user){
     let r = null;
     try{ r = await Store.getZP(user.zone, $('#zpPeriod').value); }
     catch(err){ console.error(err); toast('Could not load saved report — check connection'); }
-    if(r){ setNote(r.status==='draft'?'draft':'submitted'); fillForm(r); await applyBaseline(); return; }
+    if(r){ setNote(r.status==='draft'?'draft':'submitted'); fillForm(r); await applyBaseline(); setLock(r); drawZPCharts(); return; }
     /* fall back to this device's auto-saved work-in-progress */
     let auto = null;
     try{ auto = JSON.parse(localStorage.getItem(autosaveKey())||'null'); }catch{}
-    if(auto){ setNote('auto'); fillForm(auto); await applyBaseline(); return; }
+    if(auto){ setNote('auto'); fillForm(auto); await applyBaseline(); setLock(null); drawZPCharts(); return; }
     setNote(null); addEventRow(); addEventRow(); fillNames('centList'); fillNames('starList');
     setV('m_zpName', user.name||''); setV('m_from', zpCfg.from); setV('m_to', zpCfg.to); setV('m_date', today());
     VISIT_KEYS.forEach(([k])=>{ delete photos[k]; showPhoto(k); });
     await applyBaseline();
+    setLock(null);
+    drawZPCharts();
+  }
+
+  /* lock the form once the report has been finally submitted */
+  let zpLocked = false;
+  function setLock(r){
+    zpLocked = isLocked(r, user);
+    document.getElementById('zpLockBanner').innerHTML = lockBanner(zpLocked);
+    applyLock('#zpForm', zpLocked);
+    const rb = document.getElementById('zpReopenBtn');
+    if (rb) rb.style.display = (r && r.status==='submitted') ? '' : 'none';
   }
   $('#zpPeriod').addEventListener('change', loadExisting);
   loadExisting();
@@ -607,6 +630,7 @@ function renderZP(user){
   }
 
   async function persist(status, okMsg){
+    if (zpLocked){ toast('This report is locked — ask the SuperAdmin to reopen it'); return; }
     const r = gather(status);
     try{
       await Store.saveZP(r);
@@ -629,6 +653,12 @@ function renderZP(user){
   document.getElementById('draftBtn').addEventListener('click', ()=>{
     persist('draft', 'Draft saved — not yet visible to NVP');
   });
+  const zpReopen = document.getElementById('zpReopenBtn');
+  if (zpReopen) zpReopen.addEventListener('click', async ()=>{
+    const r = gather('draft');
+    try{ await Store.saveZP(r); toast('Reopened — the Zone President can edit and resubmit'); loadExisting(); }
+    catch(err){ console.error(err); toast('Could not reopen — check connection'); }
+  });
 
   /* auto-save every change locally so a refresh never loses work */
   let autoTimer = null;
@@ -637,6 +667,49 @@ function renderZP(user){
     autoTimer = setTimeout(()=>{
       try{ localStorage.setItem(autosaveKey(), JSON.stringify(gather('draft'))); }catch{}
     }, 700);
+  });
+
+  /* ---- charts on the ZP page ---- */
+  let zpCharts = [];
+  function drawZPCharts(){
+    if (typeof Chart === 'undefined') return;
+    try{
+      zpCharts.forEach(c=>{ try{c.destroy();}catch{} });
+      zpCharts = [];
+      const C = { blue:'#0067B1', blueLite:'#B8D4EA', gold:'#F2B01E', goldLite:'#F6DFA3', green:'#1E8E5A', line:'#DDE6EE' };
+      Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+      Chart.defaults.font.size = 11;
+      Chart.defaults.color = '#5B7186';
+      const bar = (id, labels, t, a, cT, cA) => {
+        const el = document.getElementById(id); if(!el) return;
+        zpCharts.push(new Chart(el, { type:'bar',
+          data:{ labels, datasets:[
+            { label:'Target', data:t, backgroundColor:cT, borderRadius:4 },
+            { label:'Achieved', data:a, backgroundColor:cA, borderRadius:4 } ] },
+          options:{ responsive:true, maintainAspectRatio:false, animation:false,
+            plugins:{ legend:{ position:'bottom' } },
+            scales:{ x:{ grid:{display:false}, ticks:{ maxRotation:60, minRotation:0 } },
+                     y:{ beginAtZero:true, grid:{color:C.line} } } } }));
+      };
+      bar('zcStatus', ['Membership','Foundation Contribution'],
+        [nval('zs_mem_t')||0, nval('zs_fc_t')||0], [nval('zs_mem_a')||0, nval('zs_fc_a')||0], C.blueLite, C.blue);
+      bar('zcTA', TA_ROWS.map(([k,l])=>l),
+        TA_ROWS.map(([k])=>nval('ta_'+k+'_t')||0), TA_ROWS.map(([k])=>nval('ta_'+k+'_a')||0), C.blueLite, C.blue);
+      bar('zcEV', EV_ROWS.map(([k,l])=>l),
+        EV_ROWS.map(([k])=>nval('ev_'+k+'_t')||0), EV_ROWS.map(([k])=>nval('ev_'+k+'_a')||0), C.goldLite, C.gold);
+      const fcEl = document.getElementById('zcFC');
+      if (fcEl) zpCharts.push(new Chart(fcEl, { type:'bar',
+        data:{ labels: FC_ROWS.map(([k,l])=>l.split(' ')[0]),
+               datasets:[{ label:'Achieved', data: FC_ROWS.map(([k])=>nval('fc_'+k+'_a')||0),
+                           backgroundColor:C.green, borderRadius:4 }] },
+        options:{ responsive:true, maintainAspectRatio:false, animation:false,
+          plugins:{ legend:{ display:false } },
+          scales:{ x:{ grid:{display:false}, ticks:{ maxRotation:60 } }, y:{ beginAtZero:true, grid:{color:C.line} } } } }));
+    }catch(err){ console.error('ZP charts failed:', err); }
+  }
+  let chartTimer = null;
+  document.getElementById('zpForm').addEventListener('input', ()=>{
+    clearTimeout(chartTimer); chartTimer = setTimeout(drawZPCharts, 500);
   });
 
   /* ---- Download PDF (print) of the ZP's own report ---- */
@@ -665,6 +738,7 @@ function renderZP(user){
         + FC_ROWS.map(([k,l])=>'<tr><td class="rowlab">'+l+'</td><td class="n">'+show(r.fc?.[k]?.t)+'</td><td class="n">'+show(r.fc?.[k]?.a)+'</td><td class="n">'+show(r.fc?.[k]?.amt)+'</td></tr>').join('')))
       + sec('Events Participation Details', kv2(th(['Event','Target','Achieved'])
         + EV_ROWS.map(([k,l])=>'<tr><td class="rowlab">'+l+'</td><td class="n">'+show(r.ev?.[k]?.t)+'</td><td class="n">'+show(r.ev?.[k]?.a)+'</td></tr>').join(''))
+        + '<div class="hint" style="margin:10px 0 6px"><b>No of participants</b></div>'
         + kv2(th(EP_ROWS.map(([k,l])=>l))+'<tr>'+EP_ROWS.map(([k])=>'<td class="n">'+show(r.ep?.[k])+'</td>').join('')+'</tr>'))
       + sec('Any Other Contribution Details', kv2(th(OC_COLS.map(([k,l])=>l))
         + '<tr>'+OC_COLS.map(([k])=>'<td>'+esc(r.oc?.[k]||'')+'</td>').join('')+'</tr>'))
@@ -676,20 +750,37 @@ function renderZP(user){
         ? kv2(th(['Event Name','Date','Host LO','No of Participants'])
           + r.majorEvents.map(ev=>'<tr><td>'+esc(ev.name)+'</td><td>'+esc(ev.date)+'</td><td>'+esc(ev.host)+'</td><td class="n">'+show(ev.part)+'</td></tr>').join(''))
         : '<div class="hint">None reported.</div>')
+      + '<div class="section-label">Report at a glance</div><div id="zpChartSlot"></div>'
       + sec('Efforts taken to make Zone positive / growth in membership', '<div style="font-size:13px;white-space:pre-wrap">'+esc(r.efforts||'—')+'</div>')
       + sec('Action Marks (if any)', '<div style="font-size:13px;white-space:pre-wrap">'+esc(r.actionMarks||'—')+'</div>')
-      + kv2(th(['ZP Name','Zone','Date','Status'])
+      + '<div class="section-label">Declaration</div>'
+      + kv2(th(['ZP Name','Zone','Reporting Date','Report Status'])
         + '<tr><td>'+esc(m.zpName||'')+'</td><td>Zone '+r.zone+'</td><td>'+esc(m.reportDate||'')+'</td><td>'+(r.status==='draft'?'DRAFT':'Submitted')+'</td></tr>')
       + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div>'
       + '</div>';
   }
   document.getElementById('zpPrintBtn').addEventListener('click', ()=>{
     const r = gather(zpStatus);
+    drawZPCharts();
     document.getElementById('printArea').innerHTML = zpPrintHTML(r);
-    document.body.classList.add('zp-print');
-    const done = ()=>{ document.body.classList.remove('zp-print'); window.removeEventListener('afterprint', done); };
-    window.addEventListener('afterprint', done);
-    window.print();
+
+    /* move the rendered charts into the printed report, then put them back */
+    const charts = document.getElementById('zpCharts');
+    const slot = document.getElementById('zpChartSlot');
+    const home = charts ? charts.parentNode : null;
+    const anchor = charts ? charts.nextSibling : null;
+    if (charts && slot){
+      const inner = charts.querySelector('.chart-grid');
+      if (inner) slot.appendChild(inner);
+    }
+    const fname = 'Zone' + r.zone + '_' + safeName(r.meta.zpName || user.name || user.u) + '_' + stamp();
+    printAs(fname,
+      ()=>{ document.body.classList.add('zp-print'); },
+      ()=>{
+        document.body.classList.remove('zp-print');
+        const inner = slot ? slot.querySelector('.chart-grid') : null;
+        if (inner && charts) charts.appendChild(inner);
+      });
   });
   document.getElementById('zpCsvBtn').addEventListener('click', ()=>{
     const r = gather('current');
@@ -712,7 +803,7 @@ function renderZP(user){
     const csv = pairs.map(([a,b])=>'"'+String(a).replace(/"/g,'""')+'","'+String(b??'').replace(/"/g,'""')+'"').join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob(['Field,Value\n'+csv],{type:'text/csv'}));
-    link.download = 'JCI_ZP_Report_Zone'+r.zone+'_'+pkey(r.period)+'.csv';
+    link.download = 'Zone'+r.zone+'_'+safeName(r.meta.zpName||user.name||user.u)+'_'+stamp()+'.csv';
     link.click();
   });
 }
@@ -1044,9 +1135,10 @@ async function renderConsolidated(user){
     + '<div class="card"><h2>Zone submission status</h2>'
     + '<div class="lead">Which Zone Presidents have filed for the selected period.</div>'
     + '<div id="matrixRows"></div>'
-    + '<div class="legend"><span><span class="dot" style="background:var(--ok)"></span>Submitted (final)</span><span><span class="dot" style="background:var(--gold)"></span>Draft in progress</span><span><span class="dot" style="background:var(--miss)"></span>Pending</span></div></div>'
+    + '<div class="legend"><span><span class="dot" style="background:var(--ok)"></span>Submitted (final)</span><span><span class="dot" style="background:var(--gold)"></span>Draft in progress</span><span><span class="dot" style="background:var(--miss)"></span>Pending</span></div>'
+    + '<div id="nvpStatusRow"></div></div>'
     + '<div class="toolbar no-print"><button class="btn-sec" id="csvBtn">Download CSV</button>'
-    + '<button class="btn-sec" onclick="window.print()">Print / PDF</button>'
+    + '<button class="btn-sec" id="conPrintBtn">Print / PDF</button>'
     + '<button class="btn-sec" onclick="location.hash=\'nd\'">National Directors\' reports</button>'
     + ((user.role==='NEC'||user.viaAdmin) ? '<button class="btn-sec" onclick="location.hash=\'logins\'">Login Activity</button>' : '')
     + (user.viaAdmin ? '<button class="btn-sec" onclick="stopActing()">← Admin console</button>' : '')
@@ -1097,10 +1189,36 @@ async function renderConsolidated(user){
     try{ renderCharts(areas, zones, byZone, draftZones, user.role==='NEC', baseByZone); }
     catch(err){ console.error('Charts failed:', err); }
 
+    /* NVP report status per area */
+    const nvpRow = document.getElementById('nvpStatusRow');
+    if (nvpRow){
+      nvpRow.innerHTML = '<div class="section-label" style="margin:20px 0 8px">NVP report status</div>'
+        + '<div class="zone-chips">'
+        + areas.map(a=>{
+            const d = nvpDocs[a];
+            const waiting = AREAS[a].filter(z=>!byZone[z]);
+            const st = waiting.length ? 'miss' : (d ? (d.status==='draft'?'draft':'done') : 'miss');
+            const nm = d?.meta?.nvpName || nameOfNVP(a);
+            const label = waiting.length ? 'Pending — '+waiting.length+' zone report'+(waiting.length>1?'s':'')+' awaited'
+                        : st==='done' ? 'Submitted' : st==='draft' ? 'Draft' : 'Not filed';
+            return '<span class="zchip '+st+'" title="'+(waiting.length?'Zones '+waiting.join(', ')+' still to submit':'')+'">'
+              + 'Area '+a+(nm?' — '+esc(nm):'')+' · '+label+'</span>';
+          }).join('')
+        + '</div>';
+    }
+
     /* NVP-only inputs */
     if (user.role==='NVP'){
       const a = user.area, zonesA = AREAS[a], docA = nvpDocs[a];
-      $('#nvpInputs').innerHTML = '<div class="card no-print"><h2>NVP inputs for this period</h2>'
+      const nvpLocked = isLocked(docA, user);
+      const pending = zonesA.filter(z=>!byZone[z]);
+      $('#nvpInputs').innerHTML = lockBanner(nvpLocked)
+        + '<div id="nvpValidation"></div>'
+        + (pending.length ? '<div class="mode-banner" style="background:var(--miss-bg);border-color:#EBB4AE;color:var(--miss)">'
+            + '<b>'+pending.length+' of '+zonesA.length+' zones have not filed a final report yet</b> ('
+            + pending.map(z=>'Zone '+z).join(', ')
+            + '). You can save a draft, but your report cannot be submitted as final until every zone has submitted.</div>' : '')
+        + '<div class="card no-print" id="nvpCard"><h2>NVP inputs for this period</h2>'
         + '<div class="lead">These sections are filled by you (not consolidated from ZP reports). They appear in your printed report below.</div>'
         + '<div class="form-grid">'
         + '<div><label for="nv_name">Name of the NVP</label><input id="nv_name" value="'+esc(docA?.meta?.nvpName||user.name||'')+'"></div>'
@@ -1111,9 +1229,10 @@ async function renderConsolidated(user){
         + '<div class="section-label">National Events Bids received from assigned Zones</div>'
         + secBids(zonesA, docA, true)
         + '<div class="section-label">Efforts, Action Marks &amp; Remarks — your input (zone-wise)</div>'
-        + '<div class="hint" style="margin-bottom:8px">The ZPs\' own efforts and action marks are consolidated automatically below. These are YOUR remarks per zone; both appear as separate sections in the report.</div>'
+        + '<div class="hint" style="margin-bottom:8px">The ZPs\' own efforts and action marks are consolidated automatically below. These are YOUR remarks per zone; both appear as separate sections in the report. <b>All three columns are required for every zone before you can submit a final report</b> — drafts can be saved incomplete.</div>'
         + '<div class="tscroll"><table class="ftab">'
-        + '<tr><th>Assigned Zone</th><th>Efforts to make Zone positive (NVP input)</th><th>Action Mark (NVP input)</th><th>Remarks</th></tr>'
+        + '<tr><th>Assigned Zone</th><th>Efforts to make Zone positive (NVP input) <span style="color:var(--miss)">*</span></th>'
+        + '<th>Action Mark (NVP input) <span style="color:var(--miss)">*</span></th><th>Remarks <span style="color:var(--miss)">*</span></th></tr>'
         + zonesA.map(z=>'<tr><td class="rowlab">Zone '+z+'</td>'
             + '<td><textarea id="nvpe_'+z+'_efforts" rows="2"></textarea></td>'
             + '<td><textarea id="nvpe_'+z+'_action" rows="2"></textarea></td>'
@@ -1133,6 +1252,40 @@ async function renderConsolidated(user){
         setV('nvpe_'+z+'_remarks', docA?.zoneNotes?.[z]?.remarks ?? '');
       });
       async function saveNvp(status){
+        if (nvpLocked){ toast('This report is locked — ask the SuperAdmin to reopen it'); return; }
+
+        /* Every assigned zone must have filed a FINAL ZP report first */
+        if (status === 'submitted' && pending.length && !user.viaAdmin){
+          const warn = document.getElementById('nvpValidation');
+          warn.innerHTML = '<div class="mode-banner" style="background:var(--miss-bg);border-color:#EBB4AE;color:var(--miss)">'
+            + '<b>Cannot submit yet.</b> All assigned zones must file their final Zone President report first.<br>'
+            + 'Still pending: ' + esc(pending.map(z=>'Zone '+z+(nameOfZP(z)?' ('+nameOfZP(z)+')':'')).join(' · ')) + '</div>';
+          warn.scrollIntoView({behavior:'smooth', block:'center'});
+          toast('All zone reports must be submitted before you can submit');
+          return;
+        }
+
+        /* Efforts, Action Mark and Remarks are compulsory for a final submission */
+        if (status === 'submitted'){
+          const need = [['efforts','Efforts'],['action','Action Mark'],['remarks','Remarks']];
+          const missing = [];
+          document.querySelectorAll('#nvpCard textarea').forEach(t=>t.classList.remove('field-error'));
+          zonesA.forEach(z=>{
+            const gaps = need.filter(([f])=>!val('nvpe_'+z+'_'+f));
+            gaps.forEach(([f])=>{ const el=document.getElementById('nvpe_'+z+'_'+f); if(el) el.classList.add('field-error'); });
+            if (gaps.length) missing.push('Zone '+z+' ('+gaps.map(g=>g[1]).join(', ')+')');
+          });
+          const warn = document.getElementById('nvpValidation');
+          if (missing.length){
+            warn.innerHTML = '<div class="mode-banner" style="background:var(--miss-bg);border-color:#EBB4AE;color:var(--miss)">'
+              + '<b>Cannot submit yet.</b> Efforts, Action Mark and Remarks are required for every assigned zone.<br>'
+              + 'Still to fill: ' + esc(missing.join(' · ')) + '</div>';
+            warn.scrollIntoView({behavior:'smooth', block:'center'});
+            toast('Fill Efforts, Action Mark and Remarks for every zone');
+            return;
+          }
+          warn.innerHTML = '';
+        }
         const doc = { area:a, period, status:status,
           meta:{nvpName:val('nv_name'),
                 from: nvpCfg.lockFrom ? nvpCfg.from : val('nv_from'),
@@ -1147,10 +1300,26 @@ async function renderConsolidated(user){
       }
       $('#saveNvpBtn').addEventListener('click', ()=>saveNvp('submitted'));
       $('#saveNvpDraftBtn').addEventListener('click', ()=>saveNvp('draft'));
+      if (user.viaAdmin && docA && docA.status==='submitted'){
+        const b = document.createElement('button');
+        b.className = 'btn-sec'; b.type = 'button'; b.textContent = 'Reopen for editing';
+        b.style.marginTop = '20px'; b.style.padding = '12px 22px'; b.style.fontSize = '15px';
+        b.addEventListener('click', ()=>saveNvp('draft'));
+        $('#saveNvpBtn').parentNode.appendChild(b);
+      }
+      applyLock('#nvpCard', nvpLocked);
     }
 
     /* Consolidated report(s) */
     $('#consol').innerHTML = areas.map(a=>areaBlock(a, byZone, nvpDocs[a], user.role==='NVP', baseByZone)).join('');
+
+    /* Print with a meaningful filename */
+    $('#conPrintBtn').onclick = ()=>{
+      const who = user.role==='NEC'
+        ? 'National_' + safeName(user.name||'NEC')
+        : 'Area'+user.area+'_'+safeName(nvpDocs[user.area]?.meta?.nvpName || user.name || user.u);
+      printAs(who + '_' + stamp());
+    };
 
     /* CSV */
     $('#csvBtn').onclick = ()=>{
@@ -1186,7 +1355,9 @@ async function renderConsolidated(user){
       const csv = [head].concat(rows).map(row=>row.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
       const link = document.createElement('a');
       link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-      link.download = 'JCI_NGB_'+(user.role==='NEC'?'National':'Area_'+user.area)+'_'+pkey(period)+'.csv';
+      link.download = (user.role==='NEC' ? 'National_'+safeName(user.name||'NEC')
+                        : 'Area'+user.area+'_'+safeName(nvpDocs[user.area]?.meta?.nvpName||user.name||user.u))
+                      + '_' + stamp() + '.csv';
       link.click();
     };
   }
@@ -1229,6 +1400,9 @@ async function renderAdmin(user){
           + '<div id="ndAdminStatus" style="margin-top:14px"></div></div>'
         : '<div class="card"><h2>National Directors\' reports</h2><div class="empty">'
           + 'Module not loaded — upload <span class="mono">nd.js</span> and the latest <span class="mono">index.html</span>, then hard-refresh.</div></div>')
+    + '<div class="card"><h2>NVP report status — all areas</h2>'
+    + '<div class="lead">Green = final submitted · Amber = draft · Red = not filed or still awaiting zone reports. An NVP cannot submit until every assigned zone has filed. Select an area to open that NVP\'s report.</div>'
+    + '<div id="aNvp"></div></div>'
     + '<div class="card"><h2>Baseline data status — all zones</h2>'
     + '<div class="lead" id="blStatusLead">Green = all figures set · Amber = partly filled · Red = nothing set. Select a zone to open the editor.</div>'
     + '<div id="aBaseline"></div>'
@@ -1249,8 +1423,15 @@ async function renderAdmin(user){
     const done = new Set(rows.filter(r=>r.status!=='draft').map(r=>r.zone));
     const drafts = new Set(rows.filter(r=>r.status==='draft').map(r=>r.zone));
     let nvpDone = 0, nvpDraft = 0;
+    const nvpState = {}, nvpWaiting = {};
     for (const a of Object.keys(AREAS)){
-      try{ const d = await Store.getNVP(a, period); if(d){ d.status==='draft' ? nvpDraft++ : nvpDone++; } }catch(err){ console.error(err); }
+      try{
+        const d = await Store.getNVP(a, period);
+        const waiting = AREAS[a].filter(z=>!done.has(z));
+        nvpWaiting[a] = waiting;
+        nvpState[a] = waiting.length ? 'miss' : (d ? (d.status==='draft' ? 'draft' : 'done') : 'miss');
+        if (d && !waiting.length){ d.status==='draft' ? nvpDraft++ : nvpDone++; }
+      }catch(err){ console.error(err); nvpState[a] = 'miss'; nvpWaiting[a] = []; }
     }
     $('#aKpis').innerHTML =
       '<div class="kpi"><div class="n">'+done.size+'<span style="font-size:15px;color:var(--muted)">/'+allZones.length+'</span></div><div class="l">ZP reports final</div></div>'
@@ -1283,6 +1464,18 @@ async function renderAdmin(user){
     const complete = allZones.filter(z=>states[z].state==='done');
     const partial  = allZones.filter(z=>states[z].state==='draft');
     const notSet   = allZones.filter(z=>states[z].state==='miss');
+
+    /* NVP report status, area by area */
+    $('#aNvp').innerHTML = '<div class="matrix-row" style="border-bottom:none"><div class="zone-chips">'
+      + Object.keys(AREAS).map(a=>{
+          const nm = nameOfNVP(a);
+          const w = nvpWaiting[a] || [];
+          const suffix = w.length ? ' · awaiting '+w.length+' zone'+(w.length>1?'s':'') : '';
+          return '<button class="zchip '+nvpState[a]+'" title="'
+            + esc(nm||'')+(w.length?' — zones still to submit: '+w.join(', '):'')+'" onclick="actAs(\'NVP\',\''+a+'\')">'
+            + 'Area '+a+(nm?' — '+esc(nm):'')+suffix+'</button>';
+        }).join('')
+      + '</div></div>';
 
     /* ND report status */
     const ndBox = document.getElementById('ndAdminStatus');
@@ -1398,9 +1591,50 @@ async function renderBaselineEditor(user){
     const csv = [head].concat(rows).map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    link.download = 'JCI_Baseline_Data.csv';
+    link.download = 'Baseline_Data_'+stamp()+'.csv';
     link.click();
   });
+}
+
+/* --- printed-PDF filename ---------------------------------------
+   Browsers name a "Save as PDF" file after document.title, so we swap
+   the title for the duration of the print and restore it afterwards. */
+function safeName(s){ return String(s||'').trim().replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+function stamp(){
+  const d = new Date(), p = n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes());
+}
+function printAs(filename, onBefore, onAfter){
+  const original = document.title;
+  document.title = filename;
+  if (onBefore) onBefore();
+  let restored = false;
+  const restore = ()=>{
+    if (restored) return; restored = true;
+    document.title = original;
+    if (onAfter) onAfter();
+    window.removeEventListener('afterprint', restore);
+  };
+  window.addEventListener('afterprint', restore);
+  window.print();
+  setTimeout(restore, 1500);
+}
+
+/* --- lock a submitted report against further editing --- */
+function lockingOn(){ return (typeof LOCK_AFTER_SUBMIT === 'undefined') ? true : !!LOCK_AFTER_SUBMIT; }
+function isLocked(rec, user){
+  return lockingOn() && rec && rec.status === 'submitted'
+    && !(user && (user.viaAdmin || user.role === 'ADMIN'));
+}
+function applyLock(scopeSel, locked){
+  document.querySelectorAll(scopeSel+' input, '+scopeSel+' textarea, '+scopeSel+' select, '+scopeSel+' button')
+    .forEach(el=>{ el.disabled = !!locked; });
+}
+function lockBanner(locked, who){
+  if(!locked) return '';
+  return '<div class="mode-banner" style="background:#E4F4EC;border-color:#9FD4BA;color:#14653F">'
+    + '<b>This report is locked.</b> It was submitted as final, so it can no longer be edited. '
+    + 'If a correction is needed, ask the SuperAdmin to reopen it'+(who?' ('+esc(who)+')':'')+'.</div>';
 }
 
 /* App version, shown in footers and the admin console */
@@ -1484,7 +1718,7 @@ async function renderLoginLog(user){
         .map(row=>row.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
       const link = document.createElement('a');
       link.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-      link.download = 'JCI_Login_Log_'+today()+'.csv';
+      link.download = 'Login_Activity_'+stamp()+'.csv';
       link.click();
     };
   }

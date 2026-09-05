@@ -29,9 +29,16 @@ const AREAS = {
    Convention: MAJOR.MINOR — raise MINOR for changes/fixes,
    MAJOR for a significant reworking.
 ----------------------------------------------------------------- */
-const APP_VERSION = '1.6';
+const APP_VERSION = '2.3';
 const APP_UPDATED = '2026-08-26';
 const APP_CHANGES = [
+  ['2.3','2026-09-05','Downloads now use meaningful filenames: zone/area/portfolio, person name and date-time.'],
+  ['2.2','2026-09-05','Fixed the blank first page in printed reports (page-break rule); labelled the participants table and declaration block in the ZP PDF.'],
+  ['2.1','2026-08-26','Charts added to the ZP report and its PDF; fixed the blank first page when downloading a ZP report.'],
+  ['2.0','2026-08-26','An NVP can no longer submit a final report until every assigned zone has filed; areas with any pending zone now show as pending everywhere.'],
+  ['1.9','2026-08-26','NVP report status shown area by area with names, in the admin console and the consolidated view.'],
+  ['1.8','2026-08-26','NVP Efforts, Action Mark and Remarks now compulsory for every zone before a final submission; pending-zone notice on the NVP page.'],
+  ['1.7','2026-08-26','Reports lock after final submission; SuperAdmin can reopen them.'],
   ['1.6','2026-08-26','All seven ND formats completed: Action Marks, ND/NC Recognitions, National Coordinators performance, Remarks, Zone Directors Meetings, Officers Visit (Management), Any Other Contribution and Major Programs (G&D), JCSAT and JJC Board (JrJc), National-level programs (Training).'],
   ['1.5','2026-08-26','National Directors\' names added.'],
   ['1.4','2026-08-26','Removed the version/changelog card from the admin console.'],
@@ -76,6 +83,17 @@ const PERIOD_DATES = {
                      false -> ZPs may edit / correct them
 ----------------------------------------------------------------- */
 const BASELINE_LOCKED = true;
+
+/* -----------------------------------------------------------------
+   LOCK AFTER FINAL SUBMIT
+   true  -> once a ZP, NVP or ND presses "Submit final report" their
+            report becomes read-only. Only the SuperAdmin can reopen it
+            (open the report from the admin console and press "Reopen
+            for editing"), which returns it to draft so the owner can
+            correct and resubmit.
+   false -> submitted reports stay editable by their owner.
+----------------------------------------------------------------- */
+const LOCK_AFTER_SUBMIT = true;
 
 const ZONE_BASELINE = {
   1: { ly:{annual:'', half2:'', activeLOs:'', newLOs:'', jrjc:'', ladyLOs:''}, zsTarget:{mem:'', fc:''}, target:{mem2nd:'', newLOs:'', ladyLOs:'', jrjc:'', jcomTables:'', jcomMembers:'', jacMembers:''},

@@ -346,8 +346,11 @@ async function renderNDForm(user, portfolio){
     + '<div class="pagehead"><h1>'+P.role+' — '+P.name+'</h1>'
     + '<div class="pick"><label style="margin:0">Report for</label>'+periodPicker('ndPeriod', DEFAULT_PERIOD)+'</div></div>'
     + '<div class="loaded-note" id="ndNote"></div>'
-    + '<div class="toolbar no-print"><button type="button" class="btn-sec" onclick="window.print()">Download PDF (Print)</button>'
-    + '<button type="button" class="btn-sec" onclick="location.hash=\'nd\'">View all ND reports</button></div>'
+    + '<div id="ndLockBanner"></div>'
+    + '<div class="toolbar no-print"><button type="button" class="btn-sec" id="ndPrintBtn">Download PDF (Print)</button>'
+    + '<button type="button" class="btn-sec" onclick="location.hash=\'nd\'">View all ND reports</button>'
+    + (user.viaAdmin || user.role==='ADMIN' ? '<button type="button" class="btn-sec" id="ndReopenBtn">Reopen for editing</button>' : '')
+    + '</div>'
     + '<form id="ndForm"><div class="card">'
     + '<div class="section-label">Report Details</div>'
     + '<div class="form-grid">'
@@ -366,6 +369,7 @@ async function renderNDForm(user, portfolio){
     + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   let current = null;
+  let ndLocked = false;
 
   function addRow(secKey, cols, values){
     const table = document.getElementById('ndrow_'+secKey);
@@ -456,9 +460,15 @@ async function renderNDForm(user, portfolio){
     build(r);
     setV('nd_m_name', r?.meta?.name || (user.role==='ND' ? (user.name||'') : (ndUserFor(portfolio)?.name||'')));
     setV('nd_m_date', r?.meta?.reportDate || today());
+    ndLocked = isLocked(r, user);
+    document.getElementById('ndLockBanner').innerHTML = lockBanner(ndLocked);
+    applyLock('#ndForm', ndLocked);
+    const rb = document.getElementById('ndReopenBtn');
+    if (rb) rb.style.display = (r && r.status==='submitted') ? '' : 'none';
   }
 
   async function persist(status, msg){
+    if (ndLocked){ toast('This report is locked — ask the SuperAdmin to reopen it'); return; }
     const doc = gather(status);
     try{ await NDStore.save(doc); toast(msg); load(); }
     catch(err){ console.error(err); toast('Could not save — check connection'); }
@@ -466,7 +476,15 @@ async function renderNDForm(user, portfolio){
   document.getElementById('ndForm').addEventListener('submit', e=>{
     e.preventDefault(); persist('submitted','Report for '+$('#ndPeriod').value+' submitted');
   });
+  document.getElementById('ndPrintBtn').addEventListener('click', ()=>{
+    printAs(safeName(P.name.replace(/&amp;/g,'&')) + '_' + safeName(val('nd_m_name') || user.name || user.u) + '_' + stamp());
+  });
   document.getElementById('ndDraftBtn').addEventListener('click', ()=>persist('draft','Draft saved'));
+  const ndReopen = document.getElementById('ndReopenBtn');
+  if (ndReopen) ndReopen.addEventListener('click', async ()=>{
+    try{ await NDStore.save(gather('draft')); toast('Reopened — the Director can edit and resubmit'); load(); }
+    catch(err){ console.error(err); toast('Could not reopen — check connection'); }
+  });
   $('#ndPeriod').addEventListener('change', load);
   load();
 }
@@ -485,12 +503,15 @@ async function renderNDView(user){
     + '<div class="card"><h2>Portfolios</h2>'
     + '<div class="lead">Submitted reports only. These are view-only; National Directors maintain their own reports.</div>'
     + '<div class="zone-chips" id="ndvChips" style="margin-top:8px"></div></div>'
-    + '<div class="toolbar no-print"><button class="btn-sec" onclick="window.print()">Print / PDF</button>'
+    + '<div class="toolbar no-print"><button class="btn-sec" id="ndvPrintBtn">Print / PDF</button>'
     + '<button class="btn-sec" id="ndvBack">← Back to my report</button></div>'
     + '<div id="ndvBody"><div class="empty">Loading…</div></div>'
     + '<div class="app-foot">Developed by <b>JFS Sumit Goyal</b>'+versionTag()+'</div></main>';
 
   document.getElementById('ndvBack').addEventListener('click', ()=>{ location.hash=''; render(); });
+  document.getElementById('ndvPrintBtn').addEventListener('click', ()=>{
+    printAs('National_Directors_' + safeName(ndName(selected)) + '_' + stamp());
+  });
 
   let selected = keys[0];
   async function load(){

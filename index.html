@@ -110,7 +110,9 @@ table.rtab{border-collapse:collapse;width:100%;font-size:13px}
 .empty{border:1px dashed var(--line);border-radius:var(--radius);padding:24px;text-align:center;color:var(--muted);font-size:13.5px}
 .saved-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;border-radius:8px;padding:11px 20px;font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.3);display:none;z-index:50}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0 16px}
+.field-error{outline:2px solid var(--miss) !important;outline-offset:-2px;background:#FEF6F5}
 .loaded-note{background:#E8F1F9;border:1px solid #BBD4E8;color:#0B4E7E;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:12px;display:none}
+.field-error{outline:2px solid var(--miss) !important;outline-offset:-2px;background:#FEF6F5}
 .ph-wrap{margin-top:4px}
 .ph-thumb{max-width:120px;max-height:90px;border-radius:6px;border:1px solid var(--line);display:block}
 input[readonly]{background:#F2F5F8;color:var(--muted);cursor:not-allowed}
@@ -123,14 +125,27 @@ input[readonly]{background:#F2F5F8;color:var(--muted);cursor:not-allowed}
 }
 @media print{
   .appbar,.toolbar,.mode-banner,.pagehead .pick,.no-print{display:none !important}
-  body{background:#fff} .card{border:none;padding:10px 0;break-inside:avoid}
+  body{background:#fff}
+  /* A card holds a whole report, so it must be allowed to flow across pages.
+     Keeping cards together is what pushed the first page blank; instead keep
+     only the small units (rows, charts) intact. */
+  .card{border:none;padding:10px 0;break-inside:auto}
+  table{break-inside:auto}
+  tr{break-inside:avoid}
+  .chart-card,.matrix-row,.report-item{break-inside:avoid}
+  .section-label{break-after:avoid;break-inside:avoid}
+  h1,h2,h3{break-after:avoid}
   .wrap{padding:0;max-width:none}
   .print-header{display:flex;align-items:center;gap:16px;border-bottom:2px solid var(--navy);padding-bottom:10px;margin-bottom:16px}
   .print-header img{height:44px}
   .print-header .pt{font-family:'Archivo';font-weight:800;font-size:17px;color:var(--navy)}
   .print-header .ps{font-size:11px;color:var(--muted)}
-  body.zp-print #zpForm,body.zp-print .pagehead,body.zp-print .loaded-note{display:none !important}
-  body.zp-print #printArea{display:block}
+  body.zp-print main.wrap > *{display:none !important}
+  body.zp-print main.wrap > #printArea{display:block !important}
+  body.zp-print main.wrap{padding:0 !important;margin:0 !important}
+  body.zp-print #printArea > .card:first-child{padding-top:0 !important;margin-top:0 !important}
+  #printArea .chart-grid{grid-template-columns:1fr 1fr;gap:14px}
+  #printArea .chart-box{height:200px}
   .rtab th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 </style>
@@ -141,8 +156,8 @@ input[readonly]{background:#F2F5F8;color:var(--muted);cursor:not-allowed}
 <body>
 <div id="app"></div>
 <div class="saved-toast" id="toast"></div>
-<script src="users.js?v=1.6"></script>
-<script src="nd.js?v=1.6"></script>
-<script src="app.js?v=1.6"></script>
+<script src="users.js?v=2.3"></script>
+<script src="nd.js?v=2.3"></script>
+<script src="app.js?v=2.3"></script>
 </body>
 </html>
